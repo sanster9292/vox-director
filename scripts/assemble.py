@@ -1,169 +1,116 @@
 #!/usr/bin/env python3
-"""
-Assembly stage (ffmpeg): multi-shot clips + per-beat narration + music -> final.mp4
+"""Stage 5: cut the film together with ffmpeg -> <project>/final.mp4
 
-Model: beats -> shots. Each shot is one short clip (its own cut). Narration and
-captions are per BEAT and span all the beat's shots, so the voice stays aligned
-while the visuals cut. BGM is ducked under the narration. Captions + watermark
-are Pillow PNGs composited with `overlay` (this ffmpeg has no libass/drawtext).
+- one segment per beat; a segment lasts max(clip length, narration + breathing room)
+- clips shorter than their segment are slowed (setpts), never freeze-framed
+- clips are scaled to cover the canvas and centre-cropped (1080x1920 for 9:16, 1920x1080 for 16:9)
+- captions overlay in the lower safe area while the line is spoken
+- narration lines are placed on their own beats; music is ducked under them (sidechain)
 
-Usage: python3 assemble.py <project_dir>   (default: out/tang-30s)
+  python3 scripts/assemble.py <project>
+beats.json "mix": {"music": 0.6, "voice": 1.25} adjusts the balance; "captions": false skips captions.
 """
-import json
 import os
 import subprocess
 import sys
 
-import text_overlay
+import project as P
 
-FPS, TAIL = 24, 0.5
-WATERMARK = "Made with Atlas Cloud · vox-director"
-RES = {"16:9": (1920, 1080), "9:16": (1080, 1920), "1:1": (1080, 1080)}
-
-
-def ff(args):
-    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", *args], check=True)
-
-
-def probe_dur(path):
-    out = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
-                          "-of", "csv=p=0", path], capture_output=True, text=True).stdout
-    try:
-        return float(out.strip())
-    except ValueError:
-        return 0.0
+a = P.args("Assemble final.mp4")
+doc = P.load(a.project)
+W, H = {"9:16": (1080, 1920), "16:9": (1920, 1080), "1:1": (1080, 1080),
+        "4:5": (1080, 1350), "3:4": (1080, 1440)}[doc.get("aspect", "9:16")]
+VO_LEAD, TAIL, END_HOLD = 0.15, 0.35, 0.8
+mix = doc.get("mix", {})
+use_caps = doc.get("captions", True)
+J = lambda *p: os.path.join(a.project, *p)
 
 
-def shots_of(beat):
-    if beat.get("shots"):
-        for s in beat["shots"]:
-            yield s
+def probe(path, entry="format=duration"):
+    return subprocess.check_output(["ffprobe", "-v", "error", "-show_entries", entry,
+                                    "-of", "csv=p=0", path]).decode().strip()
+
+
+segs = []
+for i, b in enumerate(doc["beats"]):
+    n = b["id"]
+    clip = J("clips", f"clip{n}.mp4")
+    if not os.path.exists(clip):
+        sys.exit(f"missing clips/clip{n}.mp4; run clips.py first")
+    vo = J("audio", f"vo{n}.mp3")
+    cap = J("captions", f"cap{n}.png")
+    cd = float(probe(clip))
+    vd = float(probe(vo)) if os.path.exists(vo) else 0.0
+    seg = max(cd, VO_LEAD + vd + TAIL if vd else cd) + (END_HOLD if i == len(doc["beats"]) - 1 else 0)
+    segs.append(dict(n=n, clip=clip, cd=cd, seg=seg,
+                     vo=vo if vd else None, vd=vd,
+                     cap=cap if use_caps and os.path.exists(cap) else None))
+
+args, f, idx = ["ffmpeg", "-v", "error", "-y"], [], 0
+for s in segs:
+    args += ["-i", s["clip"]]
+    s["vi"], idx = idx, idx + 1
+for s in segs:
+    if s["vo"]:
+        args += ["-i", s["vo"]]
+        s["ai"], idx = idx, idx + 1
+for s in segs:
+    if s["cap"]:
+        args += ["-loop", "1", "-i", s["cap"]]
+        s["ci"], idx = idx, idx + 1
+music = J("audio", "music.mp3")
+mi = None
+if os.path.exists(music):
+    args += ["-i", music]
+    mi = idx
+
+total = sum(s["seg"] for s in segs)
+for j, s in enumerate(segs):
+    f.append(f"[{s['vi']}:v]setpts={s['seg'] / s['cd']:.5f}*PTS,fps=24,"
+             f"scale={W}:{H}:force_original_aspect_ratio=increase:flags=lanczos,"
+             f"crop={W}:{H},setsar=1,trim=duration={s['seg']:.3f}[v{j}]")
+    if s["cap"]:
+        ch = int(probe(s["cap"], "stream=height"))
+        y = int(H * (0.79 if H > W else 0.84) - ch / 2)
+        t0, t1 = VO_LEAD, s["seg"] - 0.05
+        f.append(f"[{s['ci']}:v]format=rgba,trim=duration={s['seg']:.3f}[c{j}]")
+        f.append(f"[v{j}][c{j}]overlay=0:{y}:enable='between(t,{t0},{t1:.3f})':shortest=1,format=yuv420p[o{j}]")
     else:
-        yield beat
+        f.append(f"[v{j}]format=yuv420p[o{j}]")
+f.append("".join(f"[o{j}]" for j in range(len(segs))) + f"concat=n={len(segs)}:v=1:a=0[vout]")
 
+start, vo_labels = 0.0, []
+for j, s in enumerate(segs):
+    if s["vo"]:
+        d = int((start + VO_LEAD) * 1000)
+        f.append(f"[{s['ai']}:a]aresample=48000,adelay={d}|{d},apad[vo{j}]")
+        vo_labels.append(f"[vo{j}]")
+    start += s["seg"]
 
-def run(project_dir):
-    with open(os.path.join(project_dir, "beats.json")) as f:
-        doc = json.load(f)
-    beats = doc["beats"]
-    W, H = RES.get(doc.get("aspect", "16:9"), (1920, 1080))
-    wm_text = doc.get("watermark", WATERMARK)
-    mix = doc.get("mix", {})                      # per-project audio balance (optional)
-    music_vol = float(mix.get("music", 0.6))      # BGM level (was a fixed 0.9 — lowered so VO leads)
-    voice_vol = float(mix.get("voice", 1.25))     # narration boost before the duck + final mix
-    cap_style = doc.get("caption_style", "white") # white (default, clean) | paper (collage)
-    tmp = os.path.join(project_dir, "_seg")
-    os.makedirs(tmp, exist_ok=True)
+maps = ["-map", "[vout]"]
+if vo_labels:
+    f.append("".join(vo_labels) + f"amix=inputs={len(vo_labels)}:normalize=0,"
+             f"atrim=duration={total:.3f},volume={mix.get('voice', 1.25)},asplit=2[vox][sc]")
+if mi is not None:
+    f.append(f"[{mi}:a]aresample=48000,apad,atrim=duration={total:.3f},volume={mix.get('music', 0.6)},"
+             f"afade=t=in:d=0.4,afade=t=out:st={max(total - 1.8, 0):.3f}:d=1.8[mus]")
+if vo_labels and mi is not None:
+    f.append("[mus][sc]sidechaincompress=threshold=0.05:ratio=6:attack=20:release=300[duck]")
+    f.append("[duck][vox]amix=inputs=2:normalize=0,alimiter=limit=0.95[aout]")
+elif vo_labels:
+    f.append("[sc]anullsink;[vox]alimiter=limit=0.95[aout]")
+elif mi is not None:
+    f.append("[mus]alimiter=limit=0.95[aout]")
+if vo_labels or mi is not None:
+    maps += ["-map", "[aout]"]
 
-    # ---- flatten shots into timed segments; track each beat's span ----
-    segs = []          # {clip, dur}
-    beat_spans = []    # {start, dur, beat}
-    t = 0.0
-    for beat in beats:
-        beat_start = t
-        shot_list = list(shots_of(beat))
-        # ensure the beat covers its narration (extend last shot if needed)
-        durs = [float(s.get("dur", 10)) for s in shot_list]
-        need = float(beat.get("narration_dur", sum(durs))) + TAIL
-        # a host shot's audio IS its clip, so it is never extended or slowed (sync would break)
-        if sum(durs) < need and shot_list[-1].get("kind") != "host":
-            durs[-1] += need - sum(durs)
-        for s, d in zip(shot_list, durs):
-            segs.append({"clip": s["clip_path"], "dur": round(d, 2),
-                         "host": s.get("kind") == "host"})
-            t += d
-        beat_spans.append({"start": beat_start, "dur": round(t - beat_start, 2), "beat": beat})
-    total = round(t, 2)
-
-    # ---- 1) normalise each shot to a silent segment of exactly its dur ----
-    seg_files = []
-    for i, s in enumerate(segs):
-        out = os.path.join(tmp, f"seg_{i:02d}.mp4")
-        # If the clip is shorter than the segment (narration longer than the AI
-        # clip), slow it to fill instead of freezing the last frame.
-        cd = probe_dur(s["clip"])
-        factor = s["dur"] / cd if cd > 0 else 1.0
-        pre = f"setpts={factor:.4f}*PTS," if factor > 1.02 and not s["host"] else ""
-        # blurred-fill background so off-aspect clips (e.g. 3:4 card in 9:16) get a
-        # nice bg instead of black bars; for matching-aspect clips the fg fills fully.
-        fc = (f"[0:v]{pre}split[s0][s1];"
-              f"[s0]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},"
-              f"boxblur=26:2,eq=brightness=-0.05[bg];"
-              f"[s1]scale={W}:{H}:force_original_aspect_ratio=decrease[fg];"
-              f"[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1,fps={FPS},"
-              f"tpad=stop_mode=clone:stop_duration=1[v]")
-        ff(["-i", s["clip"], "-an", "-filter_complex", fc, "-map", "[v]", "-t", f"{s['dur']}",
-            "-c:v", "libx264", "-pix_fmt", "yuv420p", out])
-        seg_files.append(out)
-
-    # ---- 2) concat all shot segments (video only) ----
-    listf = os.path.join(tmp, "list.txt")
-    with open(listf, "w") as f:
-        for s in seg_files:
-            f.write(f"file '{os.path.abspath(s)}'\n")
-    body = os.path.join(tmp, "body_silent.mp4")
-    ff(["-f", "concat", "-safe", "0", "-i", listf, "-c", "copy", body])
-
-    # ---- 3) captions (per beat) + watermark PNGs ----
-    captions_on = bool(doc.get("captions", True))  # "captions": false -> no burned-in captions
-    cap_pngs = []
-    if captions_on:
-        for bs in beat_spans:
-            beat = bs["beat"]
-            p = os.path.join(tmp, f"cap_{beat['id']}.png")
-            acc = None
-            if cap_style == "paper":              # only the paper style uses a per-beat keyline
-                kf = next((s["keyframe_path"] for s in (beat.get("shots") or [beat])
-                           if s.get("keyframe_path") and os.path.exists(s["keyframe_path"])), None)
-                acc = text_overlay.accent_color(kf) if kf else None
-            text_overlay.render_caption(beat["narration"], p, W, H, accent=acc, style=cap_style)
-            cap_pngs.append(p)
-    wm_png = text_overlay.render_watermark(wm_text, os.path.join(tmp, "wm.png"), W, H)
-
-    # ---- 4) one pass: overlay captions+wm, mix per-beat narration, duck BGM ----
-    nb = len(beat_spans)
-    ncap = len(cap_pngs)                        # 0 when captions are off
-    inputs = ["-i", body]                       # 0
-    for p in cap_pngs:
-        inputs += ["-i", p]                     # 1..ncap
-    inputs += ["-i", wm_png]                    # ncap+1
-    narr_base = ncap + 2
-    for bs in beat_spans:
-        inputs += ["-i", bs["beat"]["narration_audio"]]   # narr inputs
-    bgm_idx = narr_base + nb
-    inputs += ["-i", doc["bgm_path"]]
-
-    chain, prev = [], "[0:v]"
-    for i, bs in enumerate(beat_spans[:ncap]):
-        s, e = bs["start"] + 0.2, bs["start"] + bs["dur"] - 0.1
-        lbl = f"[v{i+1}]"
-        chain.append(f"{prev}[{i+1}:v]overlay=0:0:enable='between(t,{s:.2f},{e:.2f})'{lbl}")
-        prev = lbl
-    chain.append(f"{prev}[{ncap+1}:v]overlay=0:0[v]")
-
-    # per-beat narration delayed to its start, then mixed
-    nlabels = []
-    for i, bs in enumerate(beat_spans):
-        ms = int(bs["start"] * 1000)
-        chain.append(f"[{narr_base+i}:a]adelay={ms}:all=1[n{i}]")
-        nlabels.append(f"[n{i}]")
-    # pad the narration mix to the FULL duration, else sidechaincompress follows the (shorter)
-    # narration length and -shortest clips the tail (e.g. a silent payoff/ending beat).
-    chain.append(f"{''.join(nlabels)}amix=inputs={nb}:normalize=0:duration=longest,volume={voice_vol},apad,atrim=0:{total}[narrmix]")
-    # a filter-output label can only be consumed once -> split narration in two
-    chain.append("[narrmix]asplit=2[narrA][narrB]")
-    chain.append(f"[{bgm_idx}:a]atrim=0:{total},volume={music_vol},afade=t=out:st={max(total-2,0):.2f}:d=2[bgt]")
-    chain.append("[bgt][narrA]sidechaincompress=threshold=0.02:ratio=12:attack=5:release=350[bgd]")
-    chain.append(f"[narrB][bgd]amix=inputs=2:normalize=0:duration=longest,volume=1.4,atrim=0:{total}[a]")
-    filt = ";".join(chain)
-
-    final = os.path.join(project_dir, "final.mp4")
-    ff([*inputs, "-filter_complex", filt, "-map", "[v]", "-map", "[a]",
-        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", final])
-    print("FINAL:", final, f"(~{total}s, {len(segs)} shots)")
-
-
-if __name__ == "__main__":
-    proj = sys.argv[1] if len(sys.argv) > 1 else os.path.join(
-        os.path.dirname(__file__), "..", "out", "tang-30s")
-    run(os.path.abspath(proj))
+out = J("final.mp4")
+P.keep_previous(out)
+subprocess.run(args + ["-filter_complex", ";".join(f)] + maps +
+               ["-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p",
+                "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", "-t", f"{total:.3f}", out],
+               check=True)
+print(f"{out}  {W}x{H}  {total:.2f}s")
+for s in segs:
+    stretch = f"  (slowed {s['seg'] / s['cd']:.2f}x)" if s["seg"] > s["cd"] + 0.05 else ""
+    print(f"  beat {s['n']}: clip {s['cd']:.2f}s, narration {s['vd']:.2f}s -> {s['seg']:.2f}s{stretch}")

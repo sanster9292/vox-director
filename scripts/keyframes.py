@@ -1,92 +1,90 @@
 #!/usr/bin/env python3
-"""
-Keyframe stage: one styled keyframe per SHOT.
+"""Stage 1: one collage keyframe per beat.
 
-Each beat holds one or more shots (different framings of the same narration
-beat) so the cut has variety. Falls back to one implicit shot per beat if a
-beat has no "shots". Generates concurrently, downloads to
-<project>/keyframes/kf_<beat><shot>.jpg, records url+path onto each shot.
+Beats with "refs" (real reference photos in <project>/references/) go through the image EDIT
+model so named landmarks look like the real place; beats without refs use text-to-image.
 
-Usage: python3 keyframes.py <project_dir>   (default: out/tang-30s)
+  python3 scripts/keyframes.py <project> [--ids 1,4] [--dry-run]
 """
-import json
+import base64
 import os
+import subprocess
 import sys
+import tempfile
 
-from provider import get_provider, run_jobs
-from styles import compose_keyframe_prompt, compose_collage_prompt, resolve_theme, image_params
+import falq
+import project as P
 
-IMAGE_MODEL = "google/nano-banana-2/text-to-image"
+a = P.args("Generate collage keyframes")
+doc, st = P.load(a.project), P.state(a.project)
+img = doc.get("image", {})
+T2I = img.get("model", "fal-ai/nano-banana-2")
+EDIT = img.get("edit_model", "fal-ai/nano-banana-2/edit")
+RES = img.get("resolution", "1K")
+aspect = doc.get("aspect", "9:16")
+tmp = tempfile.mkdtemp()
 
 
-def shots_of(beat):
-    """Yield (shot_dict, shot_key) for a beat; synthesize one shot if none."""
-    if beat.get("shots"):
-        for s in beat["shots"]:
-            yield s, f"{beat['id']}{s.get('id','')}"
+def data_uri(path):
+    """Inline a local reference photo (downscaled to <=1024px) as a JPEG data URI."""
+    small = os.path.join(tmp, os.path.basename(path) + ".jpg")
+    if sys.platform == "darwin":
+        subprocess.run(["sips", "-Z", "1024", "-s", "format", "jpeg", path, "--out", small],
+                       check=True, capture_output=True)
     else:
-        yield beat, f"{beat['id']}"   # beat acts as its own single shot
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", path, "-vf",
+                        "scale='min(1024,iw)':-2", small], check=True)
+    return "data:image/jpeg;base64," + base64.b64encode(open(small, "rb").read()).decode()
 
 
-def run(project_dir):
-    bpath = os.path.join(project_dir, "beats.json")
-    with open(bpath) as f:
-        doc = json.load(f)
-    aspect = doc.get("aspect", "16:9")
-    img_model = doc.get("image_model", IMAGE_MODEL)   # default nano-banana-2; e.g. openai/gpt-image-2/text-to-image
-    img_res = doc.get("image_resolution", "1k")       # 1k (default) | 2k | 4k
-    style = doc.get("style", "painterly")
-    theme = resolve_theme(doc.get("theme")) or {}   # theme preset -> full look bundle
-    collage_style = theme.get("idiom") or doc.get("collage_style", "american-retro")
-    # a registered theme wins; a custom (unregistered) theme may set these at doc level
-    t_palette = theme.get("palette") or doc.get("palette")
-    t_type = theme.get("type_style") or doc.get("type_style")
-    t_finish = theme.get("finish") or doc.get("finish")
-    era = doc.get("era")            # only needed for the painterly (per-dynasty) style
-    kf_dir = os.path.join(project_dir, "keyframes")
-    os.makedirs(kf_dir, exist_ok=True)
-
-    prov = get_provider(doc.get("provider"))
-    specs, by_key = {}, {}
-    for beat in doc["beats"]:
-        for shot, key in shots_of(beat):
-            if shot.get("kind") == "host":      # presenter shots use host_plates.py
-                continue
-            if shot.get("keyframe_url"):        # already generated (e.g. reused wide) -> skip
-                continue
-            scene = shot["scene"]
-            if style == "collage":
-                prompt = compose_collage_prompt(scene, beat["title_cn"], beat["title_en"],
-                                                beat.get("bg", "warm ochre"), aspect,
-                                                with_title=shot.get("title", True),
-                                                style=collage_style, palette=t_palette,
-                                                type_style=t_type, finish=t_finish)
-            else:
-                prompt = compose_keyframe_prompt(era, scene, beat["title_cn"],
-                                                 beat["title_en"], aspect)
-            shot["keyframe_prompt"] = prompt
-            specs[key] = (lambda p=prompt: prov.submit_image(img_model, p,
-                                                             **image_params(img_model, aspect, img_res)))
-            by_key[key] = shot
-
-    done = run_jobs(prov, specs, poll_s=3, stall_s=75, max_retries=2, deadline_s=300)
-
-    for key, url in done.items():
-        if not url:
-            continue
-        dest = os.path.join(kf_dir, f"kf_{key}.jpg")
-        prov.download(url, dest)
-        shot = by_key[key]
-        shot["keyframe_url"] = url
-        shot["keyframe_path"] = dest
-        print(f"[{key}] saved {dest}")
-
-    with open(bpath, "w") as f:
-        json.dump(doc, f, ensure_ascii=False, indent=2)
-    print("updated", bpath)
+def prompt_for(b):
+    sub = f' with a small subtitle "{b["subtitle"]}"' if b.get("subtitle") else ""
+    headline = (f'A torn-paper banner at the top with a big bold condensed all-caps headline '
+                f'"{b["title"]}"{sub}, spelled exactly. ' if b.get("title") else "")
+    body = (f'{doc["style_block"]} SCENE as layered paper cut-outs: {b["scene"]}. '
+            f'On a bold flat {b["bg"]} paper background. {headline}Aspect ratio {aspect}.')
+    if not b.get("refs"):
+        return body
+    refs = " ".join(f"Reference image {i + 1} is a photo of {r['desc']}." for i, r in enumerate(b["refs"]))
+    return (f"{refs} Recreate those real landmarks faithfully (same architecture, shape, colour, "
+            f"domes, arches, clock faces) as printed halftone photo cut-outs inside a brand-new collage "
+            f"poster. Take only the buildings from the references; leave out their photo backgrounds, "
+            f"cars, signboards, advertising and logos. " + body)
 
 
-if __name__ == "__main__":
-    proj = sys.argv[1] if len(sys.argv) > 1 else os.path.join(
-        os.path.dirname(__file__), "..", "out", "tang-30s")
-    run(os.path.abspath(proj))
+jobs = {}
+for b in P.selected(doc, a.ids):
+    label = f"beat{b['id']}"
+    payload = {"prompt": prompt_for(b), "aspect_ratio": aspect, "resolution": RES,
+               "num_images": 1, "output_format": "png"}
+    if b.get("refs"):
+        missing = [r["file"] for r in b["refs"]
+                   if not os.path.exists(os.path.join(a.project, "references", r["file"]))]
+        if missing:
+            sys.exit(f"{label}: missing reference photos in references/: {missing}")
+        payload["image_urls"] = ([] if a.dry_run else
+                                 [data_uri(os.path.join(a.project, "references", r["file"]))
+                                  for r in b["refs"]])
+        jobs[label] = (EDIT, payload)
+    else:
+        jobs[label] = (T2I, payload)
+
+if a.dry_run:
+    for label, (ep, p) in jobs.items():
+        print(f"--- {label} via {ep}\n{p['prompt']}\n")
+    falq.estimate(jobs, lambda *_: 1)
+    sys.exit(0)
+
+for label, res in falq.run_many(jobs).items():
+    if isinstance(res, Exception):
+        continue
+    dest = os.path.join(a.project, "keyframes", f"{label}.png")
+    P.keep_previous(dest)
+    st[label] = falq.first_url(res)
+    falq.download(st[label], dest)
+    logged = dict(jobs[label][1])
+    if "image_urls" in logged:
+        logged["image_urls"] = [r["file"] for b in doc["beats"] if f"beat{b['id']}" == label for r in b["refs"]]
+    P.log(a.project, f"{label}_keyframe", logged, res)
+    P.save_state(a.project, st)
+print("keyframes:", ", ".join(f"{k}={'ok' if k in st else 'FAILED'}" for k in jobs))
