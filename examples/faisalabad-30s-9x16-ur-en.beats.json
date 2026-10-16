@@ -1,0 +1,147 @@
+{
+ "project": "welcome-to-faisalabad",
+ "topic": "Welcome to Faisalabad - the city today: a complex, bustling tapestry of a metropolis",
+ "language": "ur+en (code-switched)",
+ "_note": "Fetch the refs first: for each reference_sources entry run  python3 scripts/refs.py get <project> <file> \"<File:...>\"",
+ "aspect": "9:16",
+ "arc": "radial tour: Clock Tower outward, then pull back to the whole city",
+ "feel": "bustling, joyful, proud city energy",
+ "style_block": "Mixed-media hand-cut PAPER COLLAGE, editorial zine style where Pakistani truck art meets old newsprint. Torn and scissor-cut paper edges, tape corners, halftone print dots, newspaper clipping scraps with tiny illegible print, truck-art floral border scraps, mirror-work sticker dots, real paper drop shadows. People, buildings and vehicles are PRINTED-texture photo cut-outs with halftone grain, NOT CGI, NOT a 3D render, keep print grain and paper imperfections. Dense, busy and layered like a woven tapestry, every piece a distinct cut-out with a clear edge and its own shadow. Flat even scanned-document light, straight-on view. Vertical 9:16 poster: headline in the top fifth, the bottom fifth calmer with fewer pieces.",
+ "image": {
+  "model": "fal-ai/nano-banana-2",
+  "edit_model": "fal-ai/nano-banana-2/edit",
+  "resolution": "1K",
+  "hires_resolution": "2K"
+ },
+ "video": {
+  "model": "minimax/h3-max-turbo/image-to-video",
+  "duration": 5,
+  "params": {
+   "resolution": "1080P"
+  }
+ },
+ "tts": {
+  "model": "google/gemini-3.8-flash-tts",
+  "text_field": "prompt",
+  "params": {
+   "voice": "Charon",
+   "style_instructions": "A warm, proud, energetic Pakistani documentary narrator from Punjab. Speaks natural code-switched Urdu and English the way people in Faisalabad do, with a native Urdu accent on the Urdu words and clear English. Lively, brisk pace."
+  }
+ },
+ "music": {
+  "model": "fal-ai/minimax-music/v2.6",
+  "prompt": "Upbeat modern Pakistani fusion instrumental: driving dhol and tabla groove, a bright rubab and sitar hook, harmonium pads, punchy bass, bustling joyful city energy, builds to a proud finale. Instrumental only, no vocals. 120 BPM."
+ },
+ "mix": {
+  "music": 0.6,
+  "voice": 1.25
+ },
+ "captions": true,
+ "beats": [
+  {
+   "id": 1,
+   "title": "WELCOME TO FAISALABAD",
+   "bg": "bold truck-art red",
+   "narration": "Welcome to Faisalabad. پاکستان کا تیسرا سب سے بڑا شہر۔",
+   "caption": "Welcome to Faisalabad. Pakistan ka teesra sab se bara shehar.",
+   "scene": "the red sandstone Ghanta Ghar clock tower of Faisalabad as the tall central cut-out, surrounded by a dense crowd of everyday people cut-outs: men in shalwar kameez, women in bright dupattas, a boy carrying a tray of samosas, an elderly man with a walking stick, a green-and-yellow auto rickshaw, pigeons taking off, truck-art floral border framing the poster",
+   "camera": "slow smooth push-in toward the clock tower",
+   "motion": "the crowd cut-outs stream past in layers at different speeds, the clock hands tick forward, pigeons flutter upward across the tower, dupattas sway, the truck-art border petals pulse gently",
+   "refs": [
+    {
+     "file": "clocktower_c.jpg",
+     "desc": "the Ghanta Ghar clock tower of Faisalabad, a red sandstone Victorian tower with a clock face on each side and a small dome on top"
+    },
+    {
+     "file": "bazaar_side.jpg",
+     "desc": "the busy bazaar square around the clock tower, for the crowd and the shopfronts"
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "title": "EIGHT BAZAARS",
+   "bg": "saffron yellow",
+   "narration": "Clock Tower سے آٹھ بازار۔ Eight bazaars — ہر طرف رونق۔",
+   "caption": "Clock Tower se aath bazaar. Eight bazaars — har taraf raunaq.",
+   "scene": "top-down view: a small clock tower cut-out at the centre with eight streets radiating outward like the spokes of a wheel, each street a strip of patterned fabric packed with tiny market stalls, striped awnings, shopkeepers behind heaps of spices, glass bangles, bolts of cloth and fruit carts, and shoppers bargaining, with the domed Qaisri Gate cut-out standing at the mouth of one street",
+   "camera": "static, locked overhead",
+   "motion": "the eight street strips slide outward from the centre one after another and settle, awnings flap, shopkeepers gesture, shoppers walk along the strips, spice heaps shimmer",
+   "refs": [
+    {
+     "file": "clocktower_a.jpg",
+     "desc": "the clock tower seen from above at its roundabout, with streets radiating outward in every direction"
+    },
+    {
+     "file": "bazaar_gate.jpg",
+     "desc": "the Qaisri Gate, the pink sandstone domed gateway at the entrance to the Eight Bazaars"
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "title": "CITY OF LOOMS",
+   "subtitle": "Manchester of Pakistan",
+   "bg": "deep indigo blue",
+   "narration": "دن رات چلتی looms. The Manchester of Pakistan.",
+   "caption": "Din raat chalti looms. The Manchester of Pakistan.",
+   "scene": "a weaver in shalwar kameez working at a power loom, giant thread spools, bolts of printed lawn cloth, a woman inspecting a length of fabric, a textile mill with a brick chimney, swatches of block-print and paisley fabric scattered around",
+   "camera": "slow lateral pan left to right",
+   "motion": "all motion stays in the lower two thirds of the frame: a long length of printed cloth unrolls sideways across the lower half, the loom shuttle slides side to side, the thread spools spin, fabric swatches flutter; the mill chimney is a still paper cut-out; the top banner area stays completely clear and untouched"
+  },
+  {
+   "id": 4,
+   "title": "ON THE ROAD",
+   "bg": "emerald green",
+   "narration": "Rickshaw، chingchi، truck art — یہاں سڑک سب کی ہے۔",
+   "caption": "Rickshaw, chingchi, truck art — yahan sarak sab ki hai.",
+   "scene": "a packed traffic scene of cut-outs: a fully truck-art painted lorry with chains and a decorated front, a green-and-yellow auto rickshaw, a chingchi carrying passengers, a family of four on one motorbike, a donkey cart loaded with sacks, a traffic policeman with a whistle, comic speech-bubble horn sounds",
+   "camera": "gentle lateral parallax truck",
+   "motion": "vehicles move across in separate layers at different speeds, the lorry's hanging chains swing, the policeman raises his arm, horn speech bubbles pop in and settle, dust scraps drift"
+  },
+  {
+   "id": 5,
+   "title": "CANALS & CAMPUS",
+   "bg": "canal teal",
+   "narration": "Canal Road کی شام، campus کی رونق، اور Iqbal Stadium میں cricket۔",
+   "caption": "Canal Road ki shaam, campus ki raunaq, aur Iqbal Stadium mein cricket.",
+   "scene": "Canal Road with a tree-lined canal and reflections, students with books and backpacks walking past the red-brick domed main building of the University of Agriculture, a batsman and cheering cricket fans with Iqbal Stadium's floodlights and stands, colourful kites in the sky",
+   "camera": "slow tilt upward",
+   "motion": "the canal water ripples, tree reflections shimmer, students walk, the batsman swings and fans wave their arms; the kites stay in the open sky band between the university domes and the floodlights, bobbing and drifting gently sideways, always well below the headline banner, which stays completely clear",
+   "refs": [
+    {
+     "file": "uaf_a.jpg",
+     "desc": "the main building of the University of Agriculture Faisalabad, a long red-brick colonial building with pink domes and minarets"
+    },
+    {
+     "file": "iqbal_stadium.jpg",
+     "desc": "Iqbal Cricket Stadium Faisalabad at night under floodlights"
+    }
+   ]
+  },
+  {
+   "id": 6,
+   "title": "FAISALABAD",
+   "bg": "deep magenta with gold",
+   "narration": "کپڑا، لوگ، اور چائے — all woven together. یہ ہے فیصل آباد۔",
+   "caption": "Kapra, log, aur chai — all woven together. Yeh hai Faisalabad.",
+   "scene": "a grand finale collage shaped like a woven rug: the red sandstone Ghanta Ghar clock tower at the heart, a chaiwala pouring tea from a height into small cups, and around them miniature pieces of the bazaars, looms, rickshaws, canal and kites, smiling people of every age, truck-art border all around",
+   "camera": "slow pull-out, then hold",
+   "motion": "steam curls up from the chai, the tea stream pours, the surrounding pieces settle into the rug pattern, marigold petals drift down and settle, then everything holds still",
+   "refs": [
+    {
+     "file": "clocktower_c.jpg",
+     "desc": "the Ghanta Ghar clock tower of Faisalabad, a red sandstone Victorian tower with a clock face on each side and a small dome on top"
+    }
+   ]
+  }
+ ],
+ "reference_sources": {
+  "clocktower_c.jpg": "File:Clock tower in Faisalabad, Pakistan, 2011.jpg",
+  "clocktower_a.jpg": "File:Clock Tower Faisalabad by Usman Nadeem.jpg",
+  "bazaar_side.jpg": "File:Side view of Eight Bazaars.jpg",
+  "bazaar_gate.jpg": "File:Qaisri Gate, entrance to Eight Bazaars.jpg",
+  "uaf_a.jpg": "File:University of Agriculture, Faisalabad.jpg",
+  "iqbal_stadium.jpg": "File:Iqbal Cricket Stadium Faisalabad PAKISTAN.jpg"
+ }
+}

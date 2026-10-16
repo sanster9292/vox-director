@@ -1,0 +1,448 @@
+<title>Vox Director, Annotated</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a two-column reading desk. Skill text on the left; taped-on margin notes on the right; stacks on phones. */
+:root{
+  --paper:#f3f2ee; --sheet:#fbfbf9; --ink:#1d1f24; --muted:#5d6068; --rule:#d9d8d2;
+  --cobalt:#2747c9; --tape:#f1cf5b; --tape-ink:#3a2f05; --warn:#c2401f; --code:#ecebe6; --ok:#2f7a4a;
+  --display:"Anton","Impact","Arial Narrow",sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#16171b; --sheet:#1d1f24; --ink:#e7e6e1; --muted:#a2a3a8; --rule:#33353c;
+  --cobalt:#8ea2ff; --tape:#d8b440; --tape-ink:#231b00; --warn:#ff8a6b; --code:#25272d; --ok:#6fcf8f; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#16171b; --sheet:#1d1f24; --ink:#e7e6e1; --muted:#a2a3a8; --rule:#33353c;
+  --cobalt:#8ea2ff; --tape:#d8b440; --tape-ink:#231b00; --warn:#ff8a6b; --code:#25272d; --ok:#6fcf8f; color-scheme:dark}
+
+body{background:var(--paper);color:var(--ink);font:400 15px/1.6 var(--body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:32px 64px}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+h1,h2,h3{font-family:var(--display);font-weight:400;letter-spacing:.01em;text-wrap:balance;margin:0;line-height:1.05}
+h1{font-size:clamp(44px,8vw,88px);text-transform:uppercase}
+h2{font-size:clamp(26px,3.4vw,36px);text-transform:uppercase}
+h3{font-size:20px;text-transform:uppercase;letter-spacing:.03em}
+p{margin:0}
+code{font:500 .86em var(--mono);background:var(--code);padding:1px 5px;border-radius:3px;overflow-wrap:anywhere}
+pre{font:400 12.5px/1.55 var(--mono);background:var(--code);padding:14px 16px;border-radius:4px;overflow-x:auto;margin:0}
+pre code{background:none;padding:0;font-size:inherit;overflow-wrap:normal}
+strong{font-weight:600}
+a{color:var(--cobalt)}
+
+.hero{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:28px;align-items:end;border-bottom:3px solid var(--ink);padding-bottom:24px}
+.eyebrow{font:500 12px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.hero h1 span{color:var(--cobalt)}
+.lede{max-width:60ch;color:var(--muted);font-size:16px;margin-top:10px}
+.legend{display:flex;flex-direction:column;gap:8px;font-size:13px}
+.legend div{display:flex;gap:10px;align-items:center}
+
+.changes{background:var(--sheet);border:1px solid var(--rule);border-left:6px solid var(--cobalt);padding:18px 22px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px}
+.changes h3{grid-column:1/-1;font-size:18px}
+.changes div{display:flex;flex-direction:column;gap:4px;font-size:13.5px;line-height:1.45;min-width:0}
+.changes b{font:500 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--cobalt)}
+
+.strip{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.step{background:var(--sheet);border:1px solid var(--rule);padding:10px 10px 12px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.step b{font:400 22px var(--display);color:var(--cobalt)}
+.step span{font-size:12.5px;font-weight:600;line-height:1.3}
+.step small{font:400 11px/1.35 var(--mono);color:var(--muted);overflow-wrap:anywhere}
+.step.gate{border-color:var(--warn)}
+.step.gate b::after{content:" · gate";font:500 10px var(--mono);color:var(--warn);letter-spacing:.06em;vertical-align:middle}
+
+.row{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:28px;align-items:start}
+.src{background:var(--sheet);border:1px solid var(--rule);padding:22px 24px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.src ul,.src ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
+.src .tag{font:500 11px var(--mono);color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.notes{display:flex;flex-direction:column;gap:14px;min-width:0;position:sticky;top:16px}
+.note{position:relative;background:var(--sheet);border:1px solid var(--rule);padding:16px 14px 12px;font-size:13.5px;line-height:1.5;display:flex;flex-direction:column;gap:6px}
+.note::before{content:"";position:absolute;top:-9px;left:18px;width:64px;height:16px;background:var(--tape);opacity:.85;transform:rotate(-3deg)}
+.note .k{font:500 10.5px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--cobalt)}
+.note.warn .k{color:var(--warn)}
+.note.warn::before{background:var(--warn);opacity:.55}
+.note.you .k{color:var(--tape-ink);background:var(--tape);align-self:flex-start;padding:1px 6px}
+.chip{display:inline-block;font:500 10.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border:1px solid currentColor}
+.chip.p{color:var(--cobalt)} .chip.w{color:var(--warn)} .chip.y{color:var(--tape-ink);background:var(--tape);border-color:var(--tape)}
+.new{font:500 10px var(--mono);letter-spacing:.08em;color:var(--sheet);background:var(--cobalt);padding:1px 6px;vertical-align:middle;margin-left:6px}
+
+table{border-collapse:collapse;width:100%;font-size:13px}
+.tw{overflow-x:auto}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
+th{font:500 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+td code{white-space:nowrap}
+.lic{font:500 11px var(--mono);white-space:nowrap}
+.lic.open{color:var(--ok)} .lic.nc{color:var(--warn)}
+
+.section-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;border-top:1px solid var(--rule);padding-top:22px}
+.section-head .n{font:400 15px var(--mono);color:var(--muted)}
+
+@media (min-width:901px){.strip.s8{grid-template-columns:repeat(8,minmax(0,1fr))}}
+@media (max-width:900px){
+  .row{grid-template-columns:minmax(0,1fr)}
+  .notes{position:static}
+  .hero{grid-template-columns:minmax(0,1fr)}
+  .strip{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .changes{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:560px){.src{padding:18px 16px}.changes{grid-template-columns:minmax(0,1fr)}}
+</style>
+
+<div class="wrap">
+
+<header class="hero">
+  <div>
+    <div class="eyebrow">SKILL.md · vox-director-fal · updated 16 Oct 2026 · annotated</div>
+    <h1>Vox <span>Director</span></h1>
+    <p class="lede">The Vox Director skill you run from your Desktop CODE folder, section by section, with margin notes that explain what each instruction does, why it's there, and where it can cost you.</p>
+  </div>
+  <div class="legend">
+    <div><span class="chip p">Plain English</span> what the passage means</div>
+    <div><span class="chip w">Watch out</span> failure modes, cost traps</div>
+    <div><span class="chip y">For you</span> how it maps to your work</div>
+  </div>
+</header>
+
+<section class="changes">
+  <h3>What changed in this update</h3>
+  <div><b>Vox only</b>The skill loads only when someone asks for a Vox-style video, not for other collage or video requests.</div>
+  <div><b>Open source, then price</b>Any country of origin. Among open models that do the job, take the cheapest at the cheapest settings that still look right.</div>
+  <div><b>Draft first?</b>Claude asks whether to run a cheap draft before the final. <code>--draft</code> works in its own folder at 480P, and lock-in keeps the draft layout.</div>
+  <div><b>Real references</b>For real places, your photos come first. A web search runs only with your permission: Google Maps, Pexels, then geotagged Commons photos. People are never searched for.</div>
+</section>
+
+<section>
+  <div class="eyebrow" style="margin-bottom:10px">Pipeline · one script per stage · every paid stage has --dry-run, --ids and --draft</div>
+  <div class="strip s8">
+    <div class="step gate"><b>1</b><span>Beat map, roster, draft?</span><small>beats.json</small></div>
+    <div class="step gate"><b>2</b><span>Real references</span><small>refs.py add / search</small></div>
+    <div class="step"><b>3</b><span>Keyframes 1K</span><small>keyframes.py · image.model</small></div>
+    <div class="step"><b>4</b><span>2K people pass</span><small>hires.py · image.edit_model</small></div>
+    <div class="step gate"><b>5</b><span>Clips</span><small>clips.py · video.model</small></div>
+    <div class="step"><b>6</b><span>Voice + music</span><small>audio.py · tts.model</small></div>
+    <div class="step"><b>7</b><span>Captions</span><small>captions.py</small></div>
+    <div class="step"><b>8</b><span>Assemble</span><small>assemble.py · review.py</small></div>
+  </div>
+</section>
+
+<!-- §0 -->
+<div class="section-head"><span class="n">§0</span><h2>Frontmatter</h2></div>
+<div class="row">
+  <div class="src">
+    <div class="tag">name / description</div>
+    <p><strong>name:</strong> vox-director-fal</p>
+    <p>Make a Vox-style video: a narrated explainer or ad built from torn-paper collage posters (halftone cut-outs, bold flat colour, baked-in headlines) with music and captions, end to end on fal.ai + local ffmpeg. Use ONLY when someone asks for a Vox-style or Vox-styled video, or names Vox as the look they want. Don't use it for other collage, motion-graphics or video requests that don't ask for the Vox style. Handles real places from reference photos, crisp photographic people, and mixed-language narration (e.g. Urdu + English). <span class="new">NEW</span></p>
+  </div>
+  <aside class="notes">
+    <div class="note"><span class="k">Plain English</span>This text is all Claude sees when deciding whether to load the skill. It now says to load the skill only when you ask for the Vox look, and names what to ignore.</div>
+    <div class="note warn"><span class="k">Watch out</span>"Make a collage reel" or "animate this poster" won't load the skill anymore. Say "Vox-style" when you want it.</div>
+  </aside>
+</div>
+
+<!-- §1 -->
+<div class="section-head"><span class="n">§1</span><h2>How it works</h2></div>
+<div class="row">
+  <div class="src">
+    <p>Turns one topic into a finished <strong>Vox-style paper-collage film</strong>: each beat is a torn-paper collage poster with a baked-in headline, animated by an image-to-video model, then cut together with narration, a music bed and captions. All generation runs on <strong>fal.ai</strong>; editing runs on local <strong>ffmpeg</strong>.</p>
+    <p><strong>The collage look is born in the image step</strong> (a rich, layered poster with clear cut-out edges and shadows), and <strong>motion is added after</strong> by animating that poster. A weak keyframe can't be rescued by animation, so most of the care goes into keyframes, and keyframes are cheap to re-roll.</p>
+    <p>Before writing any prompt read <code>references/prompt-guide.md</code>; for story, <code>references/beat-layer.md</code>; for models, prices and every known failure, <code>references/fal-models.md</code>.</p>
+    <p><strong>No model is built in.</strong> Each project names its models in <code>beats.json</code>, chosen when you write the beat map: the person's pick first, otherwise <strong>open-source models first, whatever country they come from</strong>. Among the open models that do the job, <strong>pick the cheapest</strong>, at the cheapest settings that still look right. A stage with no model stops and says which field to fill. <code>falq.fit()</code> adapts each request to the chosen model's own input fields. <span class="new">NEW</span></p>
+  </div>
+  <aside class="notes">
+    <div class="note"><span class="k">Plain English</span>Image quality caps the whole film. Animation adds time, not craft, so spend your re-rolls on keyframes, which cost cents.</div>
+    <div class="note"><span class="k">Plain English</span>There are two filters, in order. First, is it open source? Where a model comes from isn't a factor. Then, of the open models that pass a one-keyframe test, which is cheapest?</div>
+    <div class="note you"><span class="k">For you</span>In practice Qwen (Alibaba) and FLUX klein (Black Forest Labs) compete on equal terms, and the cheaper one wins whenever the test keyframe looks right.</div>
+  </aside>
+</div>
+
+<!-- §2 -->
+<div class="section-head"><span class="n">§2</span><h2>Prerequisites</h2></div>
+<div class="row">
+  <div class="src">
+    <ul>
+      <li><strong>fal key.</strong> Scripts read <code>FAL_KEY</code>, or on macOS a Keychain item named <code>fal-api-key</code>. If neither exists, run <code>zsh scripts/set_key.sh fal-api-key</code> in your own terminal (input hidden). Never paste a key into chat; if one is pasted anyway, store it and rotate it later.</li>
+      <li><strong>Photo search keys (optional).</strong> Same pattern for <code>pexels-api-key</code> (free) and <code>google-maps-api-key</code> (Places API). Without them, those sources are skipped. <span class="new">NEW</span></li>
+      <li><strong>ffmpeg + ffprobe.</strong> Python 3 standard library is enough.</li>
+      <li><strong>Captions:</strong> on macOS the Swift renderer compiles itself on first use (Xcode CLI tools). Elsewhere <code>pip install pillow</code>, or <code>"captions": false</code>.</li>
+      <li><strong>Where to save:</strong> ask, or use <code>~/Videos/vox/&lt;project&gt;/</code>. One folder per project.</li>
+    </ul>
+    <p>Every script takes the project folder first. Every paid stage supports <code>--dry-run</code> (jobs + cost estimate, submits nothing), <code>--ids 1,4</code> (redo only those beats) and <code>--draft</code> (cheap ideation pass in <code>&lt;project&gt;/draft/</code>).</p>
+  </div>
+  <aside class="notes">
+    <div class="note"><span class="k">Plain English</span>The Keychain route keeps the key out of chat, shell history and plain-text files. It's the safest of the three options.</div>
+    <div class="note warn"><span class="k">Watch out</span>python.org builds on macOS often lack CA certificates, which gives <code>CERTIFICATE_VERIFY_FAILED</code>. <code>falq.py</code> falls back to <code>/etc/ssl/cert.pem</code>; the permanent fix is "Install Certificates.command".</div>
+  </aside>
+</div>
+
+<!-- §3 -->
+<div class="section-head"><span class="n">§3</span><h2>Workflow</h2></div>
+<div class="row">
+  <div class="src">
+    <h3>1 · Beat map → approval gate</h3>
+    <p>Write <code>beats.json</code>, then show the beat map as a table (headline, narration, collage contents, camera/motion), <strong>the model roster with each model's license</strong> <span class="new">NEW</span>, and the estimated cost. Wait for a go-ahead.</p>
+    <ul>
+      <li>Ask what matters: aspect (9:16 Reels/Shorts, 16:9 YouTube), length, narration language(s), history vs present day.</li>
+      <li>~5 s per beat; 30 s ≈ 6 beats; ≈12 English words per line, or <code>assemble.py</code> slows the clip.</li>
+      <li>Beat 1's headline is the hook. Vary <code>camera</code> between adjacent beats; end on a hold.</li>
+      <li><strong>Be specific:</strong> real places, foods, vehicles, crafts, everyday people. Generic collage reads as stock.</li>
+      <li>Everyday people, not celebrities — video models often refuse public figures.</li>
+    </ul>
+    <p><strong>Ask: draft first, or straight to the final film?</strong> <span class="new">NEW</span> A draft is a cheaper, lower-quality pass for trying ideas. Show both estimates.</p>
+    <div class="tw"><table>
+      <thead><tr><th></th><th>Draft (<code>--draft</code>)</th><th>Final</th></tr></thead>
+      <tbody>
+        <tr><td>Folder</td><td><code>&lt;project&gt;/draft/</code></td><td><code>&lt;project&gt;/</code></td></tr>
+        <tr><td>Image model</td><td>cheapest open, from <code>"draft"</code> block</td><td><code>image.model</code></td></tr>
+        <tr><td>2K people pass</td><td>skipped</td><td>yes, starting from the draft keyframes</td></tr>
+        <tr><td>Video</td><td>480P (or <code>"draft"</code> block)</td><td><code>video.params</code></td></tr>
+        <tr><td>Review</td><td><code>review.py &lt;project&gt;/draft keyframes</code></td><td><code>review.py &lt;project&gt; keyframes</code></td></tr>
+      </tbody>
+    </table></div>
+    <p>Lock in: <code>hires.py</code> without <code>--draft</code> (keeps the draft layout), then <code>clips.py</code>, <code>audio.py</code>, <code>captions.py</code>, <code>assemble.py</code>.</p>
+  </div>
+  <aside class="notes">
+    <div class="note"><span class="k">Plain English</span>The gate is the cheapest moment to change direction. Nothing has been spent yet, and you approve the story, the models and the budget together.</div>
+    <div class="note you"><span class="k">For you</span>12 words per 5-second beat is tight. For a Clothing Essentials ad, write it as one punchy claim per beat, not full sentences.</div>
+    <div class="note"><span class="k">Plain English</span>The draft lives in its own folder, so it can't overwrite anything. Its <code>beats.json</code> and <code>references/</code> are links to the project's own, so an edit to the plan applies to both.</div>
+    <div class="note warn"><span class="k">Watch out</span>Clips are about 70% of the bill. A 480P draft costs roughly a third of 1080P per second on the tested video model, which is where the draft saves most.</div>
+  </aside>
+</div>
+
+<div class="row">
+  <div class="src">
+    <h3>2 · Reference photos for real places and people <span class="new">NEW</span></h3>
+    <p>Anything <strong>real and specific</strong> (a city, street, landmark, restaurant, shop or real person) gets real photos before generating:</p>
+    <ol>
+      <li><strong>Ask for the person's own photos first.</strong></li>
+      <li><strong>If they have none, ask permission</strong> before searching the web.</li>
+      <li><strong>Search in this order:</strong> Google Maps place photos → Pexels → photos geotagged at the place on Wikimedia Commons → Commons keyword search.</li>
+      <li><strong>People are never searched for</strong> — their photos come only from the person asking, with consent.</li>
+    </ol>
+<pre><code>python3 scripts/refs.py add &lt;project&gt; shop.jpg ~/Downloads/shop.jpg --credit "their photo"
+python3 scripts/refs.py search "Ghanta Ghar Faisalabad"      # or --source google|pexels|geo|commons
+python3 scripts/refs.py get &lt;project&gt; clocktower.jpg &lt;id from the results&gt;
+python3 scripts/refs.py sheet &lt;project&gt;</code></pre>
+    <p>Add <code>"refs": [{"file": "...", "desc": "..."}]</code> to the beat; <code>desc</code> says what to keep. Every saved photo gets a line in <code>references/CREDITS.md</code> with source, author and licence.</p>
+  </div>
+  <aside class="notes">
+    <div class="note"><span class="k">Plain English</span>Without a reference, the image model invents a building that looks plausible and is wrong. A beat with refs automatically goes to <code>image.edit_model</code>.</div>
+    <div class="note"><span class="k">Plain English</span>"Geotagged" works by finding the place on OpenStreetMap, then pulling Commons photos taken within 400 m of it. That's how you get the actual street, not something that shares its name.</div>
+    <div class="note warn"><span class="k">Watch out</span>Google Maps photos are used only as references for the image model. Check Google's terms before showing one unaltered. Commons usually needs credit; Pexels doesn't.</div>
+    <div class="note you"><span class="k">For you</span>For a Clothing Essentials shoot, your own product and store photos take priority. The <code>add</code> command logs them as yours.</div>
+  </aside>
+</div>
+
+<div class="row">
+  <div class="src">
+    <h3>3 · Keyframes (1K) → look → fix</h3>
+<pre><code>python3 scripts/keyframes.py &lt;project&gt; --dry-run
+python3 scripts/keyframes.py &lt;project&gt;
+python3 scripts/review.py &lt;project&gt; keyframes</code></pre>
+    <p>Check every keyframe: headline spelled right, no stray quotes, nothing poking into the banner; dense layered cut-outs; landmark matches; calm bottom fifth for captions. Re-roll with <code>--ids N</code>, or one targeted fix: <code>hires.py --ids 1 --fix "..."</code>. Add <code>--draft</code> to any of these for the draft pass.</p>
+    <h3>4 · 2K pass for crisp people</h3>
+<pre><code>python3 scripts/hires.py &lt;project&gt;</code></pre>
+    <p>Re-renders each approved keyframe at 2K, layout kept, people turned into sharp printed-photo cut-outs. Skipping it is the main cause of blurry "AI" faces. Skipped in a draft; in the final run it <strong>starts from the approved draft keyframes</strong> when there are no final ones yet. <span class="new">NEW</span></p>
+  </div>
+  <aside class="notes">
+    <div class="note"><span class="k">Plain English</span>At 1K a face is only a few dozen pixels tall. The 2K pass gives the video model real detail to keep.</div>
+    <div class="note you"><span class="k">For you</span>On Qwen-Image-Edit, <code>fit()</code> turns "2K" into a 2048 px long side through <code>image_size</code>. Same intent, different field name.</div>
+    <div class="note warn"><span class="k">Watch out</span>The edit model occasionally nudges an element. Re-check the review sheet after the 2K pass.</div>
+  </aside>
+</div>
+
+<div class="row">
+  <div class="src">
+    <h3>5 · Clips → look at every one</h3>
+<pre><code>python3 scripts/clips.py &lt;project&gt; --dry-run
+python3 scripts/clips.py &lt;project&gt;
+python3 scripts/review.py &lt;project&gt; clips
+python3 scripts/review.py &lt;project&gt; title &lt;beat&gt;</code></pre>
+    <p>Use the resolution that keeps people sharp (1080P on most models); 480P is cheaper but visibly soft. The usual defect is <strong>something drifting over the headline</strong>; rewrite that beat's <code>motion</code> to keep it low ("the kites stay in the sky band below the banner") and <code>--ids N</code>. Earlier takes are kept as <code>clipN_take1.mp4</code>.</p>
+  </div>
+  <aside class="notes">
+    <div class="note warn"><span class="k">Watch out</span>Clips are about 70% of the bill. Show the dry-run estimate again before this stage.</div>
+    <div class="note"><span class="k">Plain English</span>If the model only offers set lengths (say 5 s or 10 s), <code>fit()</code> rounds up to the next allowed length and prints a note. Assembly trims the extra.</div>
+  </aside>
+</div>
+
+<div class="row">
+  <div class="src">
+    <h3>6 · Narration + music</h3>
+<pre><code>python3 scripts/audio.py &lt;project&gt;</code></pre>
+    <p>One narration file per beat. Pick voice and delivery in <code>tts.params</code>. For <strong>code-switched narration</strong> write each language in its own script inside <code>narration</code> and describe the accent in <code>style_instructions</code>. Music: drop your own <code>audio/music.mp3</code> and it is reused <span class="new">NEW</span>, or set <code>music.model</code> + <code>music.prompt</code>.</p>
+    <h3>7 · Captions</h3>
+    <p><code>captions.py</code> uses each beat's <code>caption</code>, else <code>narration</code>. For mixed scripts, caption in <strong>Latin script</strong> (Roman Urdu / Hinglish).</p>
+    <h3>8 · Assemble + verify</h3>
+<pre><code>python3 scripts/assemble.py &lt;project&gt;
+python3 scripts/review.py &lt;project&gt; final</code></pre>
+    <p>Claude can't listen to the mp4 — ask the person to check pronunciation. Report: path to <code>final.mp4</code>, a line per beat, fixes made, what's still imperfect, credit note, and spend as a range.</p>
+  </div>
+  <aside class="notes">
+    <div class="note you"><span class="k">For you</span>Punjabi or Urdu with English is exactly this path: native script in <code>narration</code>, Roman script in <code>caption</code>. It fits the comedy channel too.</div>
+    <div class="note warn"><span class="k">Watch out</span>Voice names belong to one TTS model. After switching <code>tts.model</code>, pick a voice that model actually has.</div>
+    <div class="note"><span class="k">Plain English</span>Mixed right-to-left and left-to-right text jumbles its order when a line wraps. That's why captions use Latin script.</div>
+  </aside>
+</div>
+
+<!-- §4 -->
+<div class="section-head"><span class="n">§4</span><h2>beats.json schema</h2></div>
+<div class="row">
+  <div class="src">
+<pre><code>{
+  "project": "welcome-to-faisalabad",
+  "topic": "...", "language": "ur+en", "aspect": "9:16",
+  "feel": "bustling, joyful, proud city energy",
+  "style_block": "Mixed-media hand-cut PAPER COLLAGE ... (identical every beat)",
+  "image": {"model": "&lt;t2i endpoint&gt;", "edit_model": "&lt;edit-with-refs endpoint&gt;",
+            "resolution": "1K", "hires_resolution": "2K"},
+  "video": {"model": "&lt;image-to-video endpoint&gt;", "duration": 5,
+            "params": {"resolution": "1080P"}},
+  "tts":   {"model": "&lt;tts endpoint&gt;",
+            "params": {"voice": "&lt;a voice that model offers&gt;",
+                       "style_instructions": "warm, proud documentary narrator..."}},
+  "music": {"model": "&lt;music endpoint&gt;", "prompt": "... instrumental, no vocals"},
+  "mix": {"music": 0.6, "voice": 1.25},
+  "captions": true,
+  "beats": [
+    {"id": 1, "title": "WELCOME TO FAISALABAD", "subtitle": "optional",
+     "bg": "bold truck-art red",
+     "narration": "what the voice says (any script)",
+     "caption": "optional on-screen text",
+     "scene": "the cut-out pieces in this poster",
+     "camera": "slow smooth push-in",
+     "motion": "what moves, and where (keep it off the headline)",
+     "refs": [{"file": "clocktower.jpg", "desc": "what to keep"}],
+     "duration": 5}
+  ]
+}</code></pre>
+    <p><strong>Required:</strong> <code>style_block</code>; beat fields <code>id</code>, <code>bg</code>, <code>scene</code>, <code>camera</code>, <code>motion</code>; a model for each stage you run (<code>music</code> optional with your own file).</p>
+  </div>
+  <aside class="notes">
+    <div class="note"><span class="k">Plain English</span>The <code>&lt;placeholders&gt;</code> are deliberate. The skill fills them at the approval gate rather than shipping defaults.</div>
+    <div class="note"><span class="k">Plain English</span><code>style_block</code> is pasted unchanged into every keyframe prompt, which keeps the whole film in one visual language.</div>
+    <div class="note you"><span class="k">For you</span>Save a filled <code>image</code>/<code>video</code>/<code>tts</code> block per brand and paste it into new projects. That replaces having defaults.</div>
+  </aside>
+</div>
+
+<!-- §5 -->
+<div class="section-head"><span class="n">§5</span><h2>Choosing models <span class="new">NEW</span></h2></div>
+<div class="row">
+  <div class="src">
+    <div class="tag">from references/fal-models.md</div>
+    <ol>
+      <li><strong>The person's choice wins.</strong></li>
+      <li><strong>Open source first, any country of origin:</strong> Apache 2.0 / MIT → open weights under a non-commercial self-host license (outputs fine via fal) → closed only if no open model does the job.</li>
+      <li><strong>Then optimise for price:</strong> the cheapest open model that passes the one-keyframe test, at the cheapest settings that still look right. For a draft, the cheapest open model outright. <span class="new">NEW</span></li>
+      <li><strong>Check the license on the day</strong> for non-commercial clauses.</li>
+      <li><strong>Check the inputs</strong> at <code>fal.ai/api/openapi/queue/openapi.json?endpoint_id=&lt;id&gt;</code>.</li>
+      <li><strong>Test one keyframe</strong> before a full run; keep headlines short if text suffers.</li>
+    </ol>
+    <div class="tag">Open-weights image models on fal · checked 15 Oct 2026</div>
+    <div class="tw"><table>
+      <thead><tr><th>Use</th><th>Endpoint</th><th>License</th><th>Refs</th><th>Price</th></tr></thead>
+      <tbody>
+        <tr><td>Edit with refs, 2K pass, fixes</td><td><code>fal-ai/qwen-image-edit-2511</code></td><td class="lic open">Apache 2.0</td><td>yes, list</td><td>$0.03/MP</td></tr>
+        <tr><td>Cheap drafts, edit with refs</td><td><code>fal-ai/flux-2/klein/4b/edit</code></td><td class="lic open">Apache 2.0</td><td>multi</td><td>$0.009/MP</td></tr>
+        <tr><td>Edit with refs, higher quality</td><td><code>fal-ai/flux-2/klein/9b</code></td><td class="lic nc">FLUX NC*</td><td>multi</td><td>see page</td></tr>
+        <tr><td>Text-to-image keyframes</td><td><code>fal-ai/qwen-image</code></td><td class="lic open">Apache 2.0</td><td>none</td><td>see page</td></tr>
+        <tr><td>Fast text-to-image</td><td><code>fal-ai/z-image/turbo</code></td><td class="lic open">Apache 2.0</td><td>1 init</td><td>see page</td></tr>
+      </tbody>
+    </table></div>
+    <p style="font-size:13px;color:var(--muted)">*Outputs fine through fal; self-hosting needs a Black Forest Labs license.</p>
+    <div class="tag">Tested combination · Oct 2026 · closed image models</div>
+    <div class="tw"><table>
+      <thead><tr><th>Job</th><th>Endpoint</th><th>Price seen</th></tr></thead>
+      <tbody>
+        <tr><td>Keyframe</td><td><code>fal-ai/nano-banana-2</code></td><td>$0.08 / image 1K</td></tr>
+        <tr><td>Refs, 2K pass, fixes</td><td><code>fal-ai/nano-banana-2/edit</code></td><td>~$0.08–0.12</td></tr>
+        <tr><td>Animate</td><td><code>minimax/h3-max-turbo/image-to-video</code></td><td>480P $0.025/s · 1080P $0.08/s</td></tr>
+        <tr><td>Narration</td><td><code>google/gemini-3.8-flash-tts</code></td><td>$0.045 / 1000 chars</td></tr>
+        <tr><td>Music</td><td><code>fal-ai/minimax-music/v2.6</code></td><td>$0.15 / track</td></tr>
+      </tbody>
+    </table></div>
+    <p>That combination makes a 30 s, 6-beat 9:16 film for roughly <strong>$3–4</strong>. The Faisalabad example uses it.</p>
+  </div>
+  <aside class="notes">
+    <div class="note you"><span class="k">For you</span>Suggested final roster: <code>image.model</code> = Qwen-Image, <code>image.edit_model</code> = Qwen-Image-Edit-2511. Draft block: FLUX.2 [klein] 4B for both, at $0.009/MP, about a third of Qwen-Edit's price. All are Apache 2.0 and all run in your ComfyUI too.</div>
+    <div class="note"><span class="k">Plain English</span>The tested table is a fallback, not a default. Use it when an open model fails the one-keyframe test.</div>
+    <div class="note warn"><span class="k">Watch out</span>The open video and voice slots haven't been researched yet, so candidates for <code>video.model</code> and <code>tts.model</code> still need a catalog search.</div>
+  </aside>
+</div>
+
+<!-- §6 -->
+<div class="section-head"><span class="n">§6</span><h2>How fit() adapts requests <span class="new">NEW</span></h2></div>
+<div class="row">
+  <div class="src">
+    <p>The stage scripts write one neutral request; <code>falq.fit(endpoint, payload)</code> reads the endpoint's input schema (cached a week in <code>~/.cache/vox-director-fal/schemas</code>, no key needed) and reshapes it:</p>
+    <div class="tw"><table>
+      <thead><tr><th>Script sends</th><th>Model expects</th><th>fit() sends</th></tr></thead>
+      <tbody>
+        <tr><td><code>aspect_ratio 9:16</code> + <code>resolution 2K</code></td><td><code>image_size</code> (Qwen, FLUX)</td><td><code>{"width": 1152, "height": 2048}</code></td></tr>
+        <tr><td>same</td><td>only enum sizes</td><td><code>portrait_16_9</code> (nearest)</td></tr>
+        <tr><td><code>resolution 2k</code></td><td>enum <code>0.5K/1K/2K/4K</code></td><td><code>2K</code> (case matched)</td></tr>
+        <tr><td><code>image_urls [a, b]</code></td><td><code>image_url</code></td><td><code>a</code>, with a note</td></tr>
+        <tr><td><code>prompt</code></td><td><code>text</code> (TTS)</td><td><code>text</code></td></tr>
+        <tr><td><code>duration 4</code></td><td>enum <code>"5","10"</code></td><td><code>"5"</code>, with a note</td></tr>
+        <tr><td><code>duration 3</code></td><td>range 5–15</td><td><code>5</code>, with a note</td></tr>
+        <tr><td>any field the model lacks</td><td>—</td><td>dropped, with a note</td></tr>
+      </tbody>
+    </table></div>
+    <p>If the schema can't be fetched, the payload goes out unchanged.</p>
+  </div>
+  <aside class="notes">
+    <div class="note"><span class="k">Plain English</span>This is what makes "change the model in one line" true. Before, a wrong field name was silently ignored by some models, which wasted a paid run.</div>
+    <div class="note warn"><span class="k">Watch out</span>Read the notes on the first <code>--dry-run</code> with any new model. A dropped field is where a mismatch shows up.</div>
+    <div class="note warn"><span class="k">Watch out</span>Every row was tested against mock schemas shaped like the real ones. It hasn't run against live fal yet because fal wasn't reachable from this session.</div>
+  </aside>
+</div>
+
+<!-- §7 -->
+<div class="section-head"><span class="n">§7</span><h2>Costs and price traps</h2></div>
+<div class="row">
+  <div class="src">
+    <p>Every paid stage spends real money. Show the <code>--dry-run</code> estimate at the beat map and again before clips (~70% of the total). Budget one or two re-rolls per film. 401/403 = wrong key; 402 or "insufficient balance" = stop and tell the person.</p>
+    <ul>
+      <li><strong>The pricing API returns the base tier.</strong> H3 Max Turbo reports $0.015/s, the 480P promo price; 1080P costs several times more. Read the model page.</li>
+      <li>Token-billed models report <code>unit_price: 1, unit: units</code>; the real per-second price is on the page.</li>
+      <li>Launch promos expire (H3's 40% discount ended 15 Oct 2026). Quote ranges.</li>
+    </ul>
+  </div>
+  <aside class="notes">
+    <div class="note warn"><span class="k">Watch out</span>The dry-run total is a floor, not a quote. For video, check the model page's per-resolution price.</div>
+    <div class="note"><span class="k">Plain English</span><code>clips.py</code> carries its own per-resolution price table for the tested models. For others, set <code>video.price_per_second</code>.</div>
+  </aside>
+</div>
+
+<!-- §8 -->
+<div class="section-head"><span class="n">§8</span><h2>Gotchas</h2></div>
+<div class="row">
+  <div class="src">
+    <ol>
+      <li><strong>SSL on macOS python.org builds</strong> — auto fallback; permanent fix via Install Certificates.</li>
+      <li><strong>ffmpeg without drawtext/libass</strong> — captions are rendered to PNG and overlaid.</li>
+      <li><strong>Mixed-script captions</strong> jumble on wrap — caption in Latin script.</li>
+      <li><strong>Moving elements cover the headline</strong> — keep motion low; check <code>review.py title</code>.</li>
+      <li><strong>Spires poke into the banner</strong> ("TO" read as "TQ") — <code>hires.py --ids N --fix</code>.</li>
+      <li><strong>Stray quotation marks</strong> around headlines — re-roll that keyframe.</li>
+      <li><strong>Clip length ≠ narration length</strong> — assemble slows the clip, never freezes it.</li>
+      <li><strong>Video models add their own soundtrack</strong> — assemble never uses clip audio.</li>
+    </ol>
+  </div>
+  <aside class="notes">
+    <div class="note"><span class="k">Plain English</span>Each of these cost a re-run while the skill was being built. Read the list before debugging anything.</div>
+  </aside>
+</div>
+
+<!-- §9 -->
+<div class="section-head"><span class="n">§9</span><h2>Not supported yet</h2></div>
+<div class="row">
+  <div class="src">
+    <p>This skill doesn't yet re-style a talking-head video, build a film around one photo of a person or product, put a talking presenter on screen, or animate cut-out pieces one by one. If someone asks, say so plainly and offer the closest thing it can do: a collage film on their topic, using their photo as a reference image where that helps.</p>
+  </div>
+  <aside class="notes">
+    <div class="note you"><span class="k">For you</span>A film built around one product photo is the gap that matters most for Clothing Essentials, so it's the one to add first. The <code>edit_model</code> slot and reference handling already exist here.</div>
+  </aside>
+</div>
+
+</div>
