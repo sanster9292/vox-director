@@ -70,7 +70,7 @@ passes (~$0.70), 30 s of 1080P video (~$2.40), narration (~$0.03), music ($0.15)
 | Cheapest motion | H3 Max Turbo at `480P` | faces go soft and "AI-looking"; fine for drafts, not for people-heavy films |
 | Best H3 motion and faces | `minimax/h3-max/image-to-video` | ~2× Turbo's price at each resolution |
 | Text-stable animation | `google/gemini-omni-flash/image-to-video` | ~$0.13/s at 720p; params `aspect_ratio` 16:9/9:16 only, `duration` 3–10; refuses recognisable celebrities/logos |
-| Real people / celebrities | Kling (`kling-video` image-to-video endpoints) | the original vox-director notes Omni and Seedance block real celebrities; Kling allows them |
+| Real people / celebrities | Kling (`kling-video` image-to-video endpoints) | Omni and Seedance have refused real celebrities in past runs; Kling allows them |
 | Cheap English TTS | `xai/tts/v1` | $0.015/1000 chars, text field is `text`, no Urdu (has hi, bn, ar…) |
 
 To switch models, change `beats.json` only (`video.model` + `video.params`, `tts.model` +

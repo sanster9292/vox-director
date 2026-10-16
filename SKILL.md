@@ -1,9 +1,9 @@
 ---
 name: vox-director-fal
-description: "Turn a topic into a finished Vox-style paper-collage video (torn paper, halftone cut-outs, bold flat colour, baked-in headlines) with narration, music and captions, end to end on fal.ai + local ffmpeg. Use this whenever someone wants a Vox-style or collage explainer, a motion collage, a narrated paper-collage short or ad, a city/place/brand/history piece told as layered collage posters, or a vertical collage Reel/Short, even if they never say 'Vox'. Handles real landmarks from reference photos, crisp photographic people, and mixed-language narration (e.g. Urdu + English). Prefer this over an Atlas Cloud collage skill whenever the person has a fal key or mentions fal, MiniMax H3, nano-banana or Gemini TTS."
+description: "Turn a topic into a finished Vox-style paper-collage video (torn paper, halftone cut-outs, bold flat colour, baked-in headlines) with narration, music and captions, end to end on fal.ai + local ffmpeg. Use this whenever someone wants a Vox-style or collage explainer, a motion collage, a narrated paper-collage short or ad, a city/place/brand/history piece told as layered collage posters, or a vertical collage Reel/Short, even if they never say 'Vox'. Handles real landmarks from reference photos, crisp photographic people, and mixed-language narration (e.g. Urdu + English)."
 ---
 
-# Vox Director (fal edition)
+# Vox Director
 
 Turns one topic into a finished **Vox-style paper-collage film**: each beat is a torn-paper
 collage poster with a baked-in headline, animated by an image-to-video model, then cut together
@@ -183,8 +183,9 @@ total). Re-rolls are normal: budget one or two per film. If a stage fails with 4
 wrong; 402 or "insufficient balance" means the account needs credit, so stop and tell the person
 rather than retrying.
 
-## Not in this edition
+## Not supported yet
 
-The original Atlas Cloud `vox-director` also has A-roll (re-style a talking-head video), C-roll
-(anchor one photo of a person/product), host mode and a local element-by-element motion engine.
-Those aren't ported to fal yet. If someone needs them, say so and point them to the Atlas edition.
+This skill doesn't yet re-style a talking-head video, build a film around one photo of a person
+or product, put a talking presenter on screen, or animate cut-out pieces one by one. If someone
+asks for one of these, say so plainly and offer the closest thing it can do: a collage film on
+their topic, using their photo as a reference image where that helps.
