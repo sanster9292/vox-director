@@ -17,6 +17,11 @@ import project as P
 a = P.args("2K re-render / targeted fix of keyframes",
            lambda p: p.add_argument("--fix", help="one targeted edit instruction instead of the 2K pass"))
 doc, st = P.load(a.project), P.state(a.project)
+if a.draft and not a.fix:
+    sys.exit("draft pass: skipping the 2K re-render (it only matters for the final film). "
+             "Go straight to clips.py --draft.")
+# Locking in a draft: final 2K renders start from the approved draft keyframes, keeping their layout.
+draft_state = P.state(os.path.join(a.project, "draft")) if not a.draft else {}
 EDIT = P.need(doc, "image", "edit_model")
 RES = doc.get("image", {}).get("hires_resolution", "2K")
 
@@ -30,6 +35,9 @@ HIRES = ("Re-render this exact collage poster at higher resolution. Keep the lay
 jobs = {}
 for b in P.selected(doc, a.ids):
     label = f"beat{b['id']}"
+    if label not in st and label in draft_state:
+        st[label] = draft_state[label]
+        print(f"{label}: starting from the approved draft keyframe", file=sys.stderr)
     if label not in st:
         sys.exit(f"{label}: no keyframe yet; run keyframes.py first")
     prompt = (f"Keep this collage poster exactly the same in every detail, except: {a.fix} Change nothing else."

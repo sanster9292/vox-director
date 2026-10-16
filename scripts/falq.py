@@ -37,17 +37,21 @@ def _ssl_context():
 _CTX = _ssl_context()
 
 
-def api_key():
-    key = os.environ.get("FAL_KEY")
+def secret(env, item, where):
+    """An API key from the environment, else the macOS Keychain (scripts/set_key.sh <item>)."""
+    key = os.environ.get(env)
     if key:
         return key
     if sys.platform == "darwin":
-        r = subprocess.run(["security", "find-generic-password", "-s", "fal-api-key", "-w"],
+        r = subprocess.run(["security", "find-generic-password", "-s", item, "-w"],
                            capture_output=True, text=True)
         if r.returncode == 0 and r.stdout.strip():
             return r.stdout.strip()
-    sys.exit("No fal API key found. Set FAL_KEY, or on macOS run scripts/set_fal_key.sh "
-             "(get a key at https://fal.ai/dashboard/keys).")
+    sys.exit(f"No key found. Set {env}, or on macOS run: zsh scripts/set_key.sh {item}  (get one at {where})")
+
+
+def api_key():
+    return secret("FAL_KEY", "fal-api-key", "https://fal.ai/dashboard/keys")
 
 
 def _call(url, payload=None, timeout=60):

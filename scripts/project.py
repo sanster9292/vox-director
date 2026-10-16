@@ -6,6 +6,8 @@
   state.json      output URLs the scripts record (keyframe URLs feed the video stage)
   keyframes/  clips/  audio/  captions/  references/  review/
   logs/           every request payload + fal result, one JSON per job
+  draft/          the same layout for a cheap ideation pass (--draft); beats.json and references/
+                  are links to the project's own, and beats.json "draft" overrides apply there
 """
 import argparse
 import json
@@ -19,17 +21,53 @@ def args(desc, extra=None):
     p.add_argument("project", help="project directory containing beats.json")
     p.add_argument("--ids", help="comma-separated beat ids to (re)do, e.g. 1,4")
     p.add_argument("--dry-run", action="store_true", help="print jobs + cost estimate, submit nothing")
+    p.add_argument("--draft", action="store_true",
+                   help="cheap ideation pass: work in <project>/draft with the beats.json \"draft\" overrides")
     if extra:
         extra(p)
     a = p.parse_args()
     a.ids = {int(x) for x in a.ids.split(",")} if a.ids else None
+    if a.draft and not is_draft(a.project):
+        a.project = make_draft(a.project)
+    a.draft = is_draft(a.project)
     for d in DIRS:
         os.makedirs(os.path.join(a.project, d), exist_ok=True)
     return a
 
 
+# What a draft pass changes when beats.json has no "draft" block: lowest-cost video tier and no 2K
+# pass. Put cheaper models in beats.json "draft" too (e.g. "draft": {"image": {"model": ...}}).
+DRAFT_DEFAULTS = {"video": {"params": {"resolution": "480P"}}}
+
+
+def is_draft(project):
+    return os.path.basename(os.path.normpath(project)) == "draft"
+
+
+def make_draft(project):
+    """<project>/draft with links back to the project's beats.json and references/."""
+    d = os.path.join(project, "draft")
+    os.makedirs(d, exist_ok=True)
+    os.makedirs(os.path.join(project, "references"), exist_ok=True)
+    for name in ("beats.json", "references"):
+        link = os.path.join(d, name)
+        if not os.path.lexists(link):
+            os.symlink(os.path.join("..", name), link)
+    return d
+
+
+def _merge(base, over):
+    out = dict(base)
+    for k, v in over.items():
+        out[k] = _merge(out[k], v) if isinstance(v, dict) and isinstance(out.get(k), dict) else v
+    return out
+
+
 def load(project):
-    return json.load(open(os.path.join(project, "beats.json")))
+    doc = json.load(open(os.path.join(project, "beats.json")))
+    if is_draft(project):
+        doc = _merge(doc, doc.get("draft") or DRAFT_DEFAULTS)
+    return doc
 
 
 def save_doc(project, doc):

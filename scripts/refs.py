@@ -1,73 +1,220 @@
 #!/usr/bin/env python3
-"""Find and fetch real reference photos of landmarks from Wikimedia Commons (freely licensed).
+"""Reference photos of real places, so the image model draws the real building, street or shop
+instead of inventing one.
 
-  python3 scripts/refs.py search "Clock Tower Faisalabad" [--limit 8]
-  python3 scripts/refs.py get <project> <name.jpg> "<File:Title.jpg or thumb URL>"
-  python3 scripts/refs.py sheet <project>          # contact sheet of references/ for review
+Order of preference (SKILL.md step 2):
+  1. The person's own photos      refs.py add <project> <name.jpg> <path/to/photo> [--credit "..."]
+  2. Web search, ONLY after the person says yes to searching:
+       google   Google Maps place photos (best for restaurants, shops, venues; needs a key)
+       pexels   Pexels stock photos (high quality, free licence; needs a free key)
+       geo      Wikimedia Commons photos geotagged near the place (no key)
+       commons  Wikimedia Commons keyword search (no key)
 
-Why Commons and not Google Images: results can be fetched by script without scraping, and every
-file states its licence and author. `get` writes references/CREDITS.md so the creator can credit
-the photographers (CC BY / CC BY-SA require attribution if the video is published).
+  python3 scripts/refs.py search "Lyallpur Clock Tower Faisalabad" [--source google|pexels|geo|commons|all] [--limit 6]
+  python3 scripts/refs.py get <project> <name.jpg> <id from search>
+  python3 scripts/refs.py add <project> <name.jpg> <local photo> [--credit "photo by ..."]
+  python3 scripts/refs.py sheet <project>          # contact sheet of references/ to look at
+
+`search` prints an id per result (File:..., pexels:123, google:places/.../photos/..., or a URL);
+pass it to `get`. Every saved photo gets a line in references/CREDITS.md with its source, author
+and licence, so the person can credit photographers when they publish.
+
+People are never searched for: photos of a real person come from the person asking (with the
+consent of whoever is pictured). Keys: env PEXELS_API_KEY / GOOGLE_MAPS_API_KEY, or on macOS the
+Keychain items "pexels-api-key" / "google-maps-api-key" (zsh scripts/set_key.sh <item>).
 """
+import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import urllib.parse
 import urllib.request
 
-import falq  # only for its SSL context
+import falq  # SSL context + key lookup
 
-UA = "vox-director-fal/1.0 (reference photo lookup)"
-API = "https://commons.wikimedia.org/w/api.php"
+UA = "vox-director-fal/1.1 (reference photo lookup)"
+COMMONS = "https://commons.wikimedia.org/w/api.php"
+NOMINATIM = "https://nominatim.openstreetmap.org/search"
+PEXELS = "https://api.pexels.com/v1"
+PLACES = "https://places.googleapis.com/v1"
 
 
-def query(params):
-    url = API + "?" + urllib.parse.urlencode(dict(params, format="json"))
-    req = urllib.request.Request(url, headers={"User-Agent": UA})
+def http_json(url, headers=None, data=None):
+    req = urllib.request.Request(url, data=json.dumps(data).encode() if data is not None else None,
+                                 headers={"User-Agent": UA, **(headers or {}),
+                                          **({"Content-Type": "application/json"} if data is not None else {})},
+                                 method="POST" if data is not None else "GET")
     with urllib.request.urlopen(req, timeout=30, context=falq._CTX) as r:
         return json.load(r)
 
 
-def info(pages):
+def fetch(url, dest, headers=None):
+    req = urllib.request.Request(url, headers={"User-Agent": UA, **(headers or {})})
+    with urllib.request.urlopen(req, timeout=60, context=falq._CTX) as r, open(dest, "wb") as f:
+        shutil.copyfileobj(r, f)
+    if os.path.getsize(dest) == 0:
+        raise RuntimeError(f"empty download: {url}")
+
+
+def credit(project, line):
+    with open(os.path.join(project, "references", "CREDITS.md"), "a") as f:
+        f.write(f"- {line}\n")
+
+
+# ---------------------------------------------------------------- Wikimedia Commons
+
+IIPROP = {"prop": "imageinfo", "iiprop": "url|size|extmetadata", "iiurlwidth": 1600}
+
+
+def _commons(params):
+    return http_json(COMMONS + "?" + urllib.parse.urlencode(dict(params, format="json")))
+
+
+def _commons_info(pages):
     out = []
     for p in sorted(pages.values(), key=lambda p: p.get("index", 0)):
+        if "imageinfo" not in p:
+            continue
         ii = p["imageinfo"][0]
         m = ii.get("extmetadata", {})
         artist = re.sub("<[^>]+>", "", m.get("Artist", {}).get("value", "")).strip()
-        out.append(dict(title=p["title"], width=ii["width"], height=ii["height"],
-                        license=m.get("LicenseShortName", {}).get("value", "?"), artist=artist,
+        out.append(dict(id=p["title"], w=ii["width"], h=ii["height"], author=artist,
+                        license=m.get("LicenseShortName", {}).get("value", "?"),
                         url=ii.get("thumburl") or ii["url"], page=ii.get("descriptionurl", "")))
     return out
 
 
-IIPROP = {"prop": "imageinfo", "iiprop": "url|size|extmetadata", "iiurlwidth": 1280}
+def search_commons(q, limit):
+    d = _commons(dict(IIPROP, action="query", generator="search", gsrnamespace=6, gsrsearch=q, gsrlimit=limit))
+    return _commons_info(d.get("query", {}).get("pages", {}))
 
 
-def search(q, limit=8):
-    d = query(dict(IIPROP, action="query", generator="search", gsrnamespace=6, gsrsearch=q, gsrlimit=limit))
-    for i in info(d.get("query", {}).get("pages", {})):
-        print(f"{i['title']}\n    {i['width']}x{i['height']}  {i['license']}  by {i['artist'][:40]}\n    {i['url']}")
+def search_geo(q, limit, radius_m=400):
+    """Photos geotagged within radius_m of the place: geocode the name (OpenStreetMap), then ask
+    Commons for files taken near those coordinates."""
+    hits = http_json(NOMINATIM + "?" + urllib.parse.urlencode({"q": q, "format": "json", "limit": 1}))
+    if not hits:
+        print(f"  geo: OpenStreetMap doesn't know '{q}'; try a fuller name with the city", file=sys.stderr)
+        return []
+    lat, lon = hits[0]["lat"], hits[0]["lon"]
+    print(f"  geo: {hits[0].get('display_name', q)[:90]}  ({lat}, {lon})", file=sys.stderr)
+    d = _commons(dict(IIPROP, action="query", generator="geosearch", ggsnamespace=6,
+                      ggscoord=f"{lat}|{lon}", ggsradius=radius_m, ggslimit=limit))
+    return _commons_info(d.get("query", {}).get("pages", {}))
 
 
-def get(project, name, src):
-    title = src if src.startswith("File:") else None
-    if not title:  # derive the File: title from a thumb/upload URL
-        fn = urllib.parse.unquote(src.split("?")[0].rstrip("/").split("/")[-1])
-        fn = re.sub(r"^\d+px-", "", fn)
-        title = "File:" + fn
-    d = query(dict(IIPROP, action="query", titles=title))
-    i = info(d["query"]["pages"])[0]
-    dest_dir = os.path.join(project, "references")
-    os.makedirs(dest_dir, exist_ok=True)
-    subprocess.run(["curl", "-s", "-L", "-A", UA, "-o", os.path.join(dest_dir, name), i["url"]], check=True)
-    with open(os.path.join(dest_dir, "CREDITS.md"), "a") as f:
-        f.write(f"- `{name}`: \"{i['title'][5:]}\" by {i['artist'] or 'unknown'}, {i['license']}, {i['page']}\n")
-    print(f"saved references/{name}  ({i['license']}, by {i['artist'][:40]})")
+def get_commons(project, name, title):
+    if not title.startswith("File:"):  # a thumb/upload URL -> File: title
+        fn = urllib.parse.unquote(title.split("?")[0].rstrip("/").split("/")[-1])
+        title = "File:" + re.sub(r"^\d+px-", "", fn)
+    i = _commons_info(_commons(dict(IIPROP, action="query", titles=title))["query"]["pages"])[0]
+    fetch(i["url"], os.path.join(project, "references", name))
+    credit(project, f'`{name}`: Wikimedia Commons "{i["id"][5:]}" by {i["author"] or "unknown"}, '
+                    f'{i["license"]}, {i["page"]}')
+    return i["license"]
 
 
-def sheet(project):
+# ---------------------------------------------------------------- Pexels
+
+def search_pexels(q, limit):
+    key = falq.secret("PEXELS_API_KEY", "pexels-api-key", "https://www.pexels.com/api/")
+    d = http_json(f"{PEXELS}/search?" + urllib.parse.urlencode({"query": q, "per_page": limit}),
+                  headers={"Authorization": key})
+    return [dict(id=f"pexels:{p['id']}", w=p["width"], h=p["height"], author=p.get("photographer", ""),
+                 license="Pexels License", url=p["src"]["large2x"], page=p["url"], alt=p.get("alt", ""))
+            for p in d.get("photos", [])]
+
+
+def get_pexels(project, name, pid):
+    key = falq.secret("PEXELS_API_KEY", "pexels-api-key", "https://www.pexels.com/api/")
+    p = http_json(f"{PEXELS}/photos/{pid}", headers={"Authorization": key})
+    fetch(p["src"]["large2x"], os.path.join(project, "references", name))
+    credit(project, f'`{name}`: Pexels photo by {p.get("photographer", "unknown")}, Pexels License, {p["url"]}')
+    return "Pexels License"
+
+
+# ---------------------------------------------------------------- Google Maps place photos
+
+def _gkey():
+    return falq.secret("GOOGLE_MAPS_API_KEY", "google-maps-api-key",
+                       "https://console.cloud.google.com/google/maps-apis (enable Places API (New))")
+
+
+def search_google(q, limit):
+    d = http_json(f"{PLACES}/places:searchText", data={"textQuery": q, "pageSize": 1},
+                  headers={"X-Goog-Api-Key": _gkey(),
+                           "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.photos"})
+    places = d.get("places", [])
+    if not places:
+        return []
+    pl = places[0]
+    print(f"  google: {pl['displayName']['text']}, {pl.get('formattedAddress', '')}", file=sys.stderr)
+    out = []
+    for ph in pl.get("photos", [])[:limit]:
+        who = ", ".join(a.get("displayName", "") for a in ph.get("authorAttributions", []))
+        out.append(dict(id=f"google:{ph['name']}", w=ph.get("widthPx", 0), h=ph.get("heightPx", 0),
+                        author=who, license="Google Maps photo (see note)", url="", page=""))
+    return out
+
+
+def get_google(project, name, photo_name):
+    d = http_json(f"{PLACES}/{photo_name}/media?" + urllib.parse.urlencode(
+        {"maxWidthPx": 1600, "skipHttpRedirect": "true", "key": _gkey()}))
+    fetch(d["photoUri"], os.path.join(project, "references", name))
+    credit(project, f"`{name}`: Google Maps place photo ({photo_name.split('/photos/')[0]}). "
+                    f"Use as a reference only; check Google Maps terms before showing it unaltered.")
+    return "Google Maps photo"
+
+
+# ---------------------------------------------------------------- commands
+
+SOURCES = {"google": search_google, "pexels": search_pexels, "geo": search_geo, "commons": search_commons}
+
+
+def cmd_search(q, source, limit):
+    for src in (["google", "pexels", "geo", "commons"] if source == "all" else [source]):
+        try:
+            results = SOURCES[src](q, limit)
+        except SystemExit as e:  # missing key: say so, carry on with the next source
+            print(f"[{src}] skipped: {e}", file=sys.stderr)
+            continue
+        except Exception as e:
+            print(f"[{src}] failed: {e}", file=sys.stderr)
+            continue
+        print(f"[{src}] {len(results)} result(s)")
+        for r in results:
+            alt = f"  \"{r['alt'][:60]}\"" if r.get("alt") else ""
+            print(f"  {r['id']}\n      {r['w']}x{r['h']}  {r['license']}  by {r['author'][:40]}{alt}")
+
+
+def cmd_get(project, name, src):
+    os.makedirs(os.path.join(project, "references"), exist_ok=True)
+    if src.startswith("pexels:"):
+        lic = get_pexels(project, name, src.split(":", 1)[1])
+    elif src.startswith("google:"):
+        lic = get_google(project, name, src.split(":", 1)[1])
+    elif src.startswith("File:") or "wikimedia.org" in src:
+        lic = get_commons(project, name, src)
+    elif src.startswith("http"):
+        fetch(src, os.path.join(project, "references", name))
+        credit(project, f"`{name}`: {src} (licence unknown: check before publishing)")
+        lic = "unknown"
+    else:
+        sys.exit(f"don't know how to fetch {src!r}; use an id printed by `search`, or a URL")
+    print(f"saved references/{name}  ({lic})")
+
+
+def cmd_add(project, name, path, who):
+    os.makedirs(os.path.join(project, "references"), exist_ok=True)
+    shutil.copyfile(os.path.expanduser(path), os.path.join(project, "references", name))
+    credit(project, f"`{name}`: supplied by the person ({who or 'their own photo'})")
+    print(f"saved references/{name}")
+
+
+def cmd_sheet(project):
     ref = os.path.join(project, "references")
     files = sorted(f for f in os.listdir(ref) if f.lower().endswith((".jpg", ".jpeg", ".png", ".webp")))
     if not files:
@@ -84,13 +231,25 @@ def sheet(project):
 
 
 if __name__ == "__main__":
-    cmd = sys.argv[1] if len(sys.argv) > 1 else ""
-    if cmd == "search":
-        lim = int(sys.argv[sys.argv.index("--limit") + 1]) if "--limit" in sys.argv else 8
-        search(sys.argv[2], lim)
-    elif cmd == "get":
-        get(sys.argv[2], sys.argv[3], sys.argv[4])
-    elif cmd == "sheet":
-        sheet(sys.argv[2])
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sp = ap.add_subparsers(dest="cmd", required=True)
+    s = sp.add_parser("search")
+    s.add_argument("query")
+    s.add_argument("--source", default="all", choices=["all", *SOURCES])
+    s.add_argument("--limit", type=int, default=6)
+    g = sp.add_parser("get")
+    g.add_argument("project"); g.add_argument("name"); g.add_argument("src")
+    d = sp.add_parser("add")
+    d.add_argument("project"); d.add_argument("name"); d.add_argument("path")
+    d.add_argument("--credit", default="")
+    h = sp.add_parser("sheet")
+    h.add_argument("project")
+    a = ap.parse_args()
+    if a.cmd == "search":
+        cmd_search(a.query, a.source, a.limit)
+    elif a.cmd == "get":
+        cmd_get(a.project, a.name, a.src)
+    elif a.cmd == "add":
+        cmd_add(a.project, a.name, a.path, a.credit)
     else:
-        sys.exit(__doc__)
+        cmd_sheet(a.project)

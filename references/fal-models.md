@@ -26,12 +26,15 @@ you write the beat map and show them to the person with the cost estimate at the
 2. **Open source first, whatever the country of origin:** permissive license (Apache 2.0 / MIT)
    → open weights under a non-commercial self-host license (outputs still usable through fal)
    → closed only if no open model does the job.
-3. **Check the license on the day** for non-commercial clauses.
-4. **Check the inputs** with the schema URL above (reference-image field, sizes, durations).
+3. **Then optimise for price.** Among the open models that pass the one-keyframe test, pick the
+   cheapest, at the cheapest settings that still look right (resolution, duration tier). For a
+   draft pass, pick the cheapest open model outright.
+4. **Check the license on the day** for non-commercial clauses.
+5. **Check the inputs** with the schema URL above (reference-image field, sizes, durations).
    `falq.fit()` reshapes the payload to each model's own fields automatically (aspect ratio to
    `image_size`, `image_urls` to `image_url`, `prompt` to `text`, durations snapped to what the
    model offers) and prints a note for anything it drops.
-5. **Test one keyframe** before a full run. Open image models can trail closed ones on long
+6. **Test one keyframe** before a full run. Open image models can trail closed ones on long
    multi-line headlines; keep headlines short or re-roll.
 
 ### Open-weights image models on fal (checked 15 Oct 2026)
@@ -45,7 +48,8 @@ you write the beat map and show them to the person with the cost estimate at the
 | Fast text-to-image | `fal-ai/z-image/turbo` | Apache 2.0 | single init image only | check page |
 
 Suggested open roster: `image.model` = Qwen-Image, `image.edit_model` = Qwen-Image-Edit-2511.
-Qwen and FLUX take `image_size`, not
+For a draft pass, FLUX.2 [klein] 4B is the cheapest open option for both
+(`"draft": {"image": {"model": "fal-ai/flux-2/klein/4b", "edit_model": "fal-ai/flux-2/klein/4b/edit"}}`). Qwen and FLUX take `image_size`, not
 `aspect_ratio` + `resolution`; `fit()` converts (2K → a 2048 px long side).
 
 ### Tested combination (October 2026, closed image models)
