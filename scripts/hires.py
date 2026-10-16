@@ -17,7 +17,7 @@ import project as P
 a = P.args("2K re-render / targeted fix of keyframes",
            lambda p: p.add_argument("--fix", help="one targeted edit instruction instead of the 2K pass"))
 doc, st = P.load(a.project), P.state(a.project)
-EDIT = doc.get("image", {}).get("edit_model", "fal-ai/nano-banana-2/edit")
+EDIT = P.need(doc, "image", "edit_model")
 RES = doc.get("image", {}).get("hires_resolution", "2K")
 
 HIRES = ("Re-render this exact collage poster at higher resolution. Keep the layout, every element's "
@@ -34,9 +34,9 @@ for b in P.selected(doc, a.ids):
         sys.exit(f"{label}: no keyframe yet; run keyframes.py first")
     prompt = (f"Keep this collage poster exactly the same in every detail, except: {a.fix} Change nothing else."
               if a.fix else HIRES)
-    jobs[label] = (EDIT, {"prompt": prompt, "image_urls": [st[label]],
-                          "aspect_ratio": doc.get("aspect", "9:16"), "resolution": RES,
-                          "num_images": 1, "output_format": "png"})
+    jobs[label] = (EDIT, falq.fit(EDIT, {"prompt": prompt, "image_urls": [st[label]],
+                                         "aspect_ratio": doc.get("aspect", "9:16"), "resolution": RES,
+                                         "num_images": 1, "output_format": "png"}))
 
 if a.dry_run:
     falq.estimate(jobs, lambda *_: 1)

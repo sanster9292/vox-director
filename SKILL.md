@@ -18,6 +18,12 @@ are cheap to re-roll. Before writing any image or motion prompt, read
 side (arcs, hooks, pacing), read `references/beat-layer.md`. For models, prices and every known
 failure, read `references/fal-models.md`.
 
+**No model is built in.** Each project names its models in `beats.json`, chosen when you write
+the beat map: the person's pick first, otherwise **open-source models first, whatever country
+they come from** (candidates and rules in `references/fal-models.md`). A stage with
+no model stops and says which field to fill. `falq.fit()` adapts each request to the chosen
+model's own input fields.
+
 ## Before anything: prerequisites
 
 - **fal key.** Scripts read `FAL_KEY`, or on macOS a Keychain item named `fal-api-key`. If neither
@@ -40,8 +46,8 @@ jobs and a cost estimate, submits nothing) and `--ids 1,4` (redo only those beat
 ### 1. Beat map → approval gate
 Write `<project>/beats.json` (schema below; a full working example is in
 `examples/faisalabad-30s-9x16-ur-en.beats.json`). Then **show the person the beat map as a table**
-(headline, narration, what's in the collage, camera/motion) plus the estimated cost, and wait for
-their go-ahead or edits. This is the cheapest moment to change direction.
+(headline, narration, what's in the collage, camera/motion), **the model roster with each model's
+license**, and the estimated cost, and wait for their go-ahead or edits. This is the cheapest moment to change direction.
 
 - Ask what's unclear and matters: aspect (9:16 for Reels/Shorts, 16:9 for YouTube), length,
   language(s) of the narration, and whether to focus on history or present day.
@@ -96,7 +102,7 @@ python3 scripts/clips.py <project>
 python3 scripts/review.py <project> clips
 python3 scripts/review.py <project> title <beat>     # for any clip where something moves near the top
 ```
-Default model: MiniMax H3 Max Turbo at 1080P (people stay sharp). 480P is cheaper but visibly soft.
+Use the resolution that keeps people sharp (1080P on most models); 480P is cheaper but visibly soft.
 The usual defect is **something drifting over the headline** (smoke, kites, petals, unrolling
 cloth). Fix it by rewriting that beat's `motion` to keep the moving thing in the lower part of
 the frame ("the kites stay in the sky band below the banner"), then `--ids N` to re-roll. Earlier
@@ -110,7 +116,8 @@ One narration file per beat so each line lands on its own cut. Pick the voice an
 the topic (`tts.params`). For **code-switched narration** (Urdu + English, Hindi + English, ...),
 Gemini TTS handles it well: write each language in its own script inside `narration` (e.g.
 `"Welcome to Faisalabad. پاکستان کا تیسرا سب سے بڑا شہر۔"`) and describe the accent in
-`style_instructions`. Music: an instrumental prompt that names instruments from the topic's culture.
+`style_instructions`. Music: drop your own track at `audio/music.mp3` and it is reused, or set `music.model` +
+`music.prompt` (an instrumental prompt that names instruments from the topic's culture).
 
 ### 7. Captions
 ```bash
@@ -141,12 +148,12 @@ approximate total spend (quote a range: fal's pricing API shows base-tier prices
   "topic": "...", "language": "ur+en", "aspect": "9:16",
   "feel": "bustling, joyful, proud city energy",
   "style_block": "Mixed-media hand-cut PAPER COLLAGE ... (identical for every beat; see prompt-guide §1)",
-  "image": {"model": "fal-ai/nano-banana-2", "edit_model": "fal-ai/nano-banana-2/edit",
+  "image": {"model": "<t2i endpoint>", "edit_model": "<edit-with-refs endpoint>",
             "resolution": "1K", "hires_resolution": "2K"},
-  "video": {"model": "minimax/h3-max-turbo/image-to-video", "duration": 5, "params": {"resolution": "1080P"}},
-  "tts":   {"model": "google/gemini-3.8-flash-tts", "text_field": "prompt",
-            "params": {"voice": "Charon", "style_instructions": "warm, proud documentary narrator..."}},
-  "music": {"model": "fal-ai/minimax-music/v2.6", "prompt": "upbeat ... instrumental, no vocals"},
+  "video": {"model": "<image-to-video endpoint>", "duration": 5, "params": {"resolution": "1080P"}},
+  "tts":   {"model": "<tts endpoint>", "params": {"voice": "<a voice that model offers>",
+            "style_instructions": "warm, proud documentary narrator..."}},
+  "music": {"model": "<music endpoint>", "prompt": "upbeat ... instrumental, no vocals"},
   "mix": {"music": 0.6, "voice": 1.25},
   "captions": true,
   "beats": [
@@ -162,8 +169,9 @@ approximate total spend (quote a range: fal's pricing API shows base-tier prices
   ]
 }
 ```
-Only `style_block` and the beat fields `id`, `bg`, `scene`, `camera`, `motion` are required; the
-rest have the defaults shown. Write the style block so it also asks for: people as PRINTED-texture
+Required: `style_block`, the beat fields `id`, `bg`, `scene`, `camera`, `motion`, and a model
+for each stage you run (`music` is optional when you supply `audio/music.mp3`). Voice names belong
+to one TTS model, so pick the voice again whenever you change `tts.model`. Write the style block so it also asks for: people as PRINTED-texture
 photo cut-outs (not CGI), every piece a distinct cut-out with its own shadow, the headline in the
 top fifth and a calmer bottom fifth for captions.
 

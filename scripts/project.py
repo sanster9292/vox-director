@@ -61,5 +61,15 @@ def keep_previous(path):
     os.rename(path, f"{base}_take{n}{ext}")
 
 
+def need(doc, section, key="model"):
+    """A model the project must name in beats.json. Nothing is defaulted: models are chosen per
+    project at the approval gate (open weights first; see references/fal-models.md)."""
+    val = (doc.get(section) or {}).get(key)
+    if not val:
+        raise SystemExit(f'beats.json is missing "{section}.{key}". Pick a model at the approval gate '
+                         f"(open weights first; candidates in references/fal-models.md) and add it.")
+    return val
+
+
 def selected(doc, ids):
     return [b for b in doc["beats"] if not ids or b["id"] in ids]

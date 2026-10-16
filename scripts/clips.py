@@ -16,8 +16,8 @@ import project as P
 a = P.args("Animate keyframes")
 doc, st = P.load(a.project), P.state(a.project)
 vid = doc.get("video", {})
-MODEL = vid.get("model", "minimax/h3-max-turbo/image-to-video")
-PARAMS = vid.get("params", {"resolution": "1080P"})
+MODEL = P.need(doc, "video")
+PARAMS = vid.get("params", {})
 DUR = vid.get("duration", 5)
 
 
@@ -40,8 +40,13 @@ for b in P.selected(doc, a.ids):
     label = f"beat{b['id']}"
     if label not in st and not a.dry_run:
         sys.exit(f"{label}: no keyframe URL in state.json; run keyframes.py first")
-    jobs[f"clip{b['id']}"] = (MODEL, dict({"prompt": motion_prompt(b), "image_url": st.get(label, "<keyframe>"),
-                                           "duration": b.get("duration", DUR)}, **PARAMS))
+    jobs[f"clip{b['id']}"] = (MODEL, falq.fit(MODEL, dict({"prompt": motion_prompt(b),
+                                                         "image_url": st.get(label, "<keyframe>"),
+                                                         "duration": b.get("duration", DUR)}, **PARAMS)))
+
+def secs_of(p):
+    return float(str(p.get("duration", DUR)).rstrip("s"))
+
 
 # fal's pricing API only reports the base (lowest-resolution, often promo) tier, which badly
 # under-quotes higher resolutions. List prices per second by resolution, from the model pages (Oct 2026).
@@ -54,14 +59,14 @@ TIERS = {
 
 if a.dry_run:
     for label, (ep, p) in jobs.items():
-        print(f"--- {label} via {ep} {PARAMS}\n{p['prompt']}\n")
+        print(f"--- {label} via {ep} {PARAMS}\n{p.get('prompt', '')}\n")
     pps = vid.get("price_per_second") or TIERS.get(MODEL, {}).get(PARAMS.get("resolution", ""))
     if pps:
-        secs = sum(p["duration"] for _, p in jobs.values())
+        secs = sum(secs_of(p) for _, p in jobs.values())
         print(f"  {len(jobs)} clips x {DUR}s at ${pps}/s ({MODEL} {PARAMS.get('resolution', '')}, list price) "
               f"= ${pps * secs:.2f}\n  (launch promos can make it cheaper; check https://fal.ai/models/{MODEL})")
     else:
-        falq.estimate(jobs, lambda l, e, p, unit: p["duration"] if "second" in unit else 1)
+        falq.estimate(jobs, lambda l, e, p, unit: secs_of(p) if "second" in unit else 1)
     sys.exit(0)
 
 for label, res in falq.run_many(jobs).items():

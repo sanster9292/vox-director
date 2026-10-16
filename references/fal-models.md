@@ -15,7 +15,42 @@ curl -s -G https://api.fal.ai/v1/models/pricing --data-urlencode "endpoint_id=<e
 Every stage script also takes `--dry-run`, which prints the exact jobs and a cost estimate
 without submitting anything. Use it and show the user the estimate before spending.
 
-## Defaults (tested end to end)
+## Choosing models (nothing is defaulted)
+
+The scripts have no built-in models. Every project names its own in `beats.json`
+(`image.model`, `image.edit_model`, `video.model`, `tts.model`, and `music.model` only if you
+generate music), and a stage stops with a clear message if its model is missing. Pick them when
+you write the beat map and show them to the person with the cost estimate at the approval gate:
+
+1. **The person's choice wins.**
+2. **Open source first, whatever the country of origin:** permissive license (Apache 2.0 / MIT)
+   → open weights under a non-commercial self-host license (outputs still usable through fal)
+   → closed only if no open model does the job.
+3. **Check the license on the day** for non-commercial clauses.
+4. **Check the inputs** with the schema URL above (reference-image field, sizes, durations).
+   `falq.fit()` reshapes the payload to each model's own fields automatically (aspect ratio to
+   `image_size`, `image_urls` to `image_url`, `prompt` to `text`, durations snapped to what the
+   model offers) and prints a note for anything it drops.
+5. **Test one keyframe** before a full run. Open image models can trail closed ones on long
+   multi-line headlines; keep headlines short or re-roll.
+
+### Open-weights image models on fal (checked 15 Oct 2026)
+
+| Use | Endpoint | License | Reference images | Price seen |
+|---|---|---|---|---|
+| Edit with refs, 2K pass, fixes | `fal-ai/qwen-image-edit-2511` | Apache 2.0 | yes (`image_urls` list) | $0.03 / MP |
+| Cheap drafts, edit with refs | `fal-ai/flux-2/klein/4b/edit` (t2i: `fal-ai/flux-2/klein/4b`) | Apache 2.0 | multi-reference | $0.009 / MP |
+| Edit with refs, higher quality | `fal-ai/flux-2/klein/9b` | FLUX Non-Commercial (outputs fine via fal; self-hosting needs a BFL license) | multi-reference | check page |
+| Text-to-image keyframes | `fal-ai/qwen-image` | Apache 2.0 | none | check page |
+| Fast text-to-image | `fal-ai/z-image/turbo` | Apache 2.0 | single init image only | check page |
+
+Suggested open roster: `image.model` = Qwen-Image, `image.edit_model` = Qwen-Image-Edit-2511.
+Qwen and FLUX take `image_size`, not
+`aspect_ratio` + `resolution`; `fit()` converts (2K → a 2048 px long side).
+
+### Tested combination (October 2026, closed image models)
+
+The film in `examples/` was made with these. Use them when an open model fails the one-keyframe test.
 
 | Job | Endpoint | Price seen | Notes |
 |---|---|---|---|
@@ -25,7 +60,7 @@ without submitting anything. Use it and show the user the estimate before spendi
 | Narration | `google/gemini-3.8-flash-tts` | $0.045 / 1000 chars | text in `prompt`; delivery in `style_instructions`; handles code-switched Urdu/Hindi + English |
 | Music | `fal-ai/minimax-music/v2.6` | $0.15 / track | `is_instrumental: true`; returns ~100 s, assemble trims and fades it |
 
-A 30 s, 6-beat 9:16 film at the defaults costs roughly **$3–4**: 6 keyframes ($0.48), 6 2K
+A 30 s, 6-beat 9:16 film with this combination costs roughly **$3–4**: 6 keyframes ($0.48), 6 2K
 passes (~$0.70), 30 s of 1080P video (~$2.40), narration (~$0.03), music ($0.15). Re-rolls add to that.
 
 ## Alternatives worth knowing
@@ -39,8 +74,9 @@ passes (~$0.70), 30 s of 1080P video (~$2.40), narration (~$0.03), music ($0.15)
 | Cheap English TTS | `xai/tts/v1` | $0.015/1000 chars, text field is `text`, no Urdu (has hi, bn, ar…) |
 
 To switch models, change `beats.json` only (`video.model` + `video.params`, `tts.model` +
-`tts.text_field` + `tts.params`). The scripts pass `params` through unchanged, so check the
-model's input fields first: a wrong field name is silently ignored by some models.
+`tts.params`). `fit()` renames common fields to the model's own and drops the rest with a note,
+so read those notes on the first run with a new model. If the schema can't be fetched, the
+payload goes out unchanged.
 
 ## Price traps
 

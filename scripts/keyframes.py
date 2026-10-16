@@ -18,8 +18,6 @@ import project as P
 a = P.args("Generate collage keyframes")
 doc, st = P.load(a.project), P.state(a.project)
 img = doc.get("image", {})
-T2I = img.get("model", "fal-ai/nano-banana-2")
-EDIT = img.get("edit_model", "fal-ai/nano-banana-2/edit")
 RES = img.get("resolution", "1K")
 aspect = doc.get("aspect", "9:16")
 tmp = tempfile.mkdtemp()
@@ -65,9 +63,10 @@ for b in P.selected(doc, a.ids):
         payload["image_urls"] = ([] if a.dry_run else
                                  [data_uri(os.path.join(a.project, "references", r["file"]))
                                   for r in b["refs"]])
-        jobs[label] = (EDIT, payload)
+        ep = P.need(doc, "image", "edit_model")
     else:
-        jobs[label] = (T2I, payload)
+        ep = P.need(doc, "image", "model")
+    jobs[label] = (ep, falq.fit(ep, payload))
 
 if a.dry_run:
     for label, (ep, p) in jobs.items():
@@ -83,8 +82,9 @@ for label, res in falq.run_many(jobs).items():
     st[label] = falq.first_url(res)
     falq.download(st[label], dest)
     logged = dict(jobs[label][1])
-    if "image_urls" in logged:
-        logged["image_urls"] = [r["file"] for b in doc["beats"] if f"beat{b['id']}" == label for r in b["refs"]]
+    for k in ("image_urls", "image_url"):  # keep data: URIs out of the log
+        if k in logged:
+            logged[k] = [r["file"] for b in doc["beats"] if f"beat{b['id']}" == label for r in b["refs"]]
     P.log(a.project, f"{label}_keyframe", logged, res)
     P.save_state(a.project, st)
 print("keyframes:", ", ".join(f"{k}={'ok' if k in st else 'FAILED'}" for k in jobs))

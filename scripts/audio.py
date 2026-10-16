@@ -16,31 +16,35 @@ a = P.args("Narration + music",
            lambda p: p.add_argument("--only", choices=["tts", "music"], help="do just one of the two"))
 doc = P.load(a.project)
 tts = doc.get("tts", {})
-TTS_MODEL = tts.get("model", "google/gemini-3.8-flash-tts")
-TEXT_FIELD = tts.get("text_field", "prompt")
-TTS_PARAMS = tts.get("params", {"voice": "Charon"})
+TEXT_FIELD = tts.get("text_field", "prompt")   # fit() moves it if the model reads "text" instead
+TTS_PARAMS = tts.get("params", {})
 music = doc.get("music", {})
-MUSIC_MODEL = music.get("model", "fal-ai/minimax-music/v2.6")
+OWN_MUSIC = os.path.join(a.project, "audio", "music.mp3")
 
 jobs = {}
 if a.only != "music":
     for b in P.selected(doc, a.ids):
         if b.get("narration"):
-            jobs[f"vo{b['id']}"] = (TTS_MODEL, dict({TEXT_FIELD: b["narration"]}, **TTS_PARAMS))
-if a.only != "tts" and not a.ids and music.get("prompt"):
-    jobs["music"] = (MUSIC_MODEL, dict({"prompt": music["prompt"], "is_instrumental": True},
-                                       **music.get("params", {})))
+            m = P.need(doc, "tts")
+            jobs[f"vo{b['id']}"] = (m, falq.fit(m, dict({TEXT_FIELD: b["narration"]}, **TTS_PARAMS)))
+if a.only != "tts" and not a.ids and os.path.exists(OWN_MUSIC) and a.only != "music":
+    print(f"  music: reusing {OWN_MUSIC} (delete it or pass --only music to generate one)")
+elif a.only != "tts" and not a.ids and music.get("prompt"):
+    m = P.need(doc, "music")
+    jobs["music"] = (m, falq.fit(m, dict({"prompt": music["prompt"], "is_instrumental": True},
+                                         **music.get("params", {}))))
 
 
 def units(label, ep, payload, unit):
     if "character" in unit:
-        return round(len(payload.get(TEXT_FIELD, "")) / 1000, 3)
+        text = payload.get(TEXT_FIELD) or payload.get("prompt") or payload.get("text") or ""
+        return round(len(text) / 1000, 3)
     return 1
 
 
 if a.dry_run:
     for label, (ep, p) in jobs.items():
-        print(f"  {label}: {ep} -> {p.get(TEXT_FIELD) or p.get('prompt')}")
+        print(f"  {label}: {ep} -> {p.get(TEXT_FIELD) or p.get('prompt') or p.get('text')}")
     falq.estimate(jobs, units)
     sys.exit(0)
 
